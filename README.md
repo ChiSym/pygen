@@ -11,9 +11,10 @@ Create a virtual environment that uses Python 3.6 or above, e.g.:
 ```
 python3 -m venv .venv
 ```
-Activate that virtual environment
+Activate that virtual environment and upgrade pip
 ```
 . .venv/bin/activate
+python -m pip install -U pip
 ```
 Install this package into the virtual environment
 ```
