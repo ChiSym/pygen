@@ -13,7 +13,7 @@ python3 -m venv .venv
 ```
 Activate that virtual environment
 ```
-source .venv/bin/activate
+. .venv/bin/activate
 ```
 Install this package into the virtual environment
 ```
