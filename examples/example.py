@@ -34,7 +34,7 @@ def model(z_dim):
     pixel_probs = gentrace(likelihood, (z,))
     binary_img = gentrace(bernoulli, (pixel_probs,), "img")
     return binary_img
-    
+
 # simulate
 trace = model.simulate((10,))
 choices = trace.get_choices()

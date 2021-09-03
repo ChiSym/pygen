@@ -33,7 +33,7 @@ def f(mu):
 
 def get_expected_score(mu, z, x):
     with torch.inference_mode(True):
-       score = ( 
+       score = (
             torch.distributions.normal.Normal(mu, 1.0).log_prob(z).sum() +
             torch.distributions.normal.Normal(network(z), 1.0).log_prob(x).sum())
     return score

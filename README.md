@@ -9,25 +9,26 @@ git clone git@github.com:probcomp/mini-pygen-dml.git
 ```
 Create a virtual environment that uses Python 3.6 or above, e.g.:
 ```
-virtualenv -p python3 .venv
+python3 -m venv .venv
 ```
-Activate that virtual environment
+Activate that virtual environment and upgrade pip
 ```
-source .venv/bin/activate
+. .venv/bin/activate
+python -m pip install -U pip
 ```
 Install this package into the virtual environment
 ```
-pip install --editable .
+python -m pip install --editable .
 ```
 
 ## Run the tests
 Install pytest:
 ```
-pip install pytest
+python -m pip install pytest
 ```
 Run pytest from the root directory of the repository:
 ```
-pytest tests
+python -m pytest tests
 ```
 
 ## Design
