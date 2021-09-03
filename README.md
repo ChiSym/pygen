@@ -42,6 +42,8 @@ Within the body of this Python function, the reserve keyword `gentrace` is used 
 It is straightforward to invoke existing PyTorch modules (instances of `torch.nn.Module`) from a generative function, and to train the parameters of these modules using PyTorch's built-in optimizers (in concert with custom gradient accumulation schemes).
 A DML generative function automatically constructs its own `torch.nn.Module` that has as children all PyTorch modules ever invoked during a traced execution of the generative function, that is accessible via the `get_torch_nn_module()` method.
 
+Because the address namespace is flat, selections are simply Python built-in `set`s and choice maps are simply Python built-in `dict`s.
+
 ## Limitations
 
 This implementation is designed primarily as a concrete reference point to aid in the design of a future version of Gen on top of PyTorch.
@@ -52,12 +54,26 @@ Some core features of Gen have not yet been added to this implementation:
 
 - DML generative functions can only invoke other DML generative functions via 'splicing' (i.e. without providing an extra address space). As a result there is no hierarchical address space.
 
-- There is no support for change hints or incremental computation, and no combinators have not been implemented.
+- There is no support for change hints or incremental computation, and no combinators have been implemented.
 
-- The 'regenerate' GFI method has not yet been implemented
+- The 'regenerate' GFI method has not yet been implemented.
 
-- There is no static modeling language (SML) implementation
+- There is no static modeling language (SML) implementation.
 
-- There is basically no inference library; but because the GFI was directly ported from Gen.jl it is straightforward to port the inference library code from Gen.jl (see e.g. `src/pygen/inflib/mcmc.py` for an example).
+- Only fragments of the inference library have been implemented; but because the GFI was directly ported from Gen.jl it is straightforward to port the inference library code from Gen.jl (see e.g. `src/pygen/inflib/mcmc.py` for an example).
 
 Running on a GPU has not been tested, and no implementation effort has been spent on this.
+
+## Next steps
+
+Natural next steps are to:
+
+- Implement a GenList data type, following [GenCollections.jl](https://github.com/probcomp/GenCollections.jl)), and including combinators and incremental computation and automatic differentiation support, using [`pyrsistent`](https://github.com/tobgu/pyrsistent).
+
+- Add support for hierarchical namespaces. This means that new types will likely be needed for selections and choice maps.
+
+- Implement a builder for DAGs that mirrors the static IR builder in Gen.jl (but possibly with improvements to ergonomics to the interface)
+
+- Implement the GFI for these DAGs
+
+- Add more collections data types.
