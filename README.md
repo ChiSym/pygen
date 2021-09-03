@@ -36,6 +36,9 @@ The modeling language implements the same GFI as Gen.jl but with a few tweaks (s
 
 The implementation strategy closely mirrors that of the Gen.jl DML.
 
+Users define a DML generative function by applying the `@gendml` decorator to a Python function.
+Within the body of this Python function, the reserve keyword `gentrace` is used to (i) invoke other DML generative functions (no address argument permitted), (ii) sample random choices from probability distributions (third address argument required), and (iii) invoke `torch.nn.Module`s (no address argument permitted).
+
 It is straightforward to invoke existing PyTorch modules (instances of `torch.nn.Module`) from a generative function, and to train the parameters of these modules using PyTorch's built-in optimizers (in concert with custom gradient accumulation schemes).
 A DML generative function automatically constructs its own `torch.nn.Module` that has as children all PyTorch modules ever invoked during a traced execution of the generative function, that is accessible via the `get_torch_nn_module()` method.
 
