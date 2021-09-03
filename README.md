@@ -37,11 +37,11 @@ The modeling language implements the same GFI as Gen.jl but with a few tweaks (s
 The implementation strategy closely mirrors that of the Gen.jl DML.
 
 It is straightforward to invoke existing PyTorch modules (instances of `torch.nn.Module`) from a generative function, and to train the parameters of these modules using PyTorch's built-in optimizers (in concert with custom gradient accumulation schemes).
-A DML generative function automatically constructs its own `torch.nn.Module` that has as children all PyTorch modules ever invoked during a traced execution of the generative function.
+A DML generative function automatically constructs its own `torch.nn.Module` that has as children all PyTorch modules ever invoked during a traced execution of the generative function, that is accessible via the `get_torch_nn_module()` method.
 
 ## Limitations
 
-This implementation is designed primarily as a concretre reference point to aid in the design of a future version of Gen on top of PyTorch.
+This implementation is designed primarily as a concrete reference point to aid in the design of a future version of Gen on top of PyTorch.
 
 Some core features of Gen have not yet been added to this implementation:
 
@@ -57,4 +57,4 @@ Some core features of Gen have not yet been added to this implementation:
 
 - There is basically no inference library; but because the GFI was directly ported from Gen.jl it is straightforward to port the inference library code from Gen.jl (see e.g. `src/pygen/inflib/mcmc.py` for an example).
 
-GPU support has not been implemented or tested.
+Running on a GPU has not been tested, and no implementation effort has been spent on this.
