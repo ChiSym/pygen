@@ -23,7 +23,7 @@ def _inject_variables(context, func):
 def splice_dml_call(gen_fn, args, addr, gentrace):
     if addr != None:
         raise RuntimeError("Address must not be provided for a DML call, got: {addr}")
-    p = _inject_variables({"gentrace" : gentrace}, gen_fn.p) 
+    p = _inject_variables({"gentrace" : gentrace}, gen_fn.p)
     return p(*args)
 
 class DMLGenFn(GenFn):
@@ -32,7 +32,7 @@ class DMLGenFn(GenFn):
         self.p = p
         self.torch_nn_module_children = set()
         self.torch_nn_module = torch.nn.Module()
-    
+
     def _record_torch_nn_module(self, module):
         if not module in self.torch_nn_module_children:
             name = str(len(self.torch_nn_module_children))
@@ -43,7 +43,7 @@ class DMLGenFn(GenFn):
 
     def simulate(self, args):
         trace = DMLTrace(self, args)
-    
+
         def gentrace(callee, args, addr=None):
             if isinstance(callee, DMLGenFn):
                 # recursive calls to this 'gentrace'
@@ -59,16 +59,16 @@ class DMLGenFn(GenFn):
                 return callee(*args)
             else:
                 raise RuntimeError("Unknown type of generative function: {callee}")
-    
+
         p = _inject_variables({"gentrace" : gentrace}, self.p)
         with torch.inference_mode(mode=True):
             trace.retval = p(*args)
         return trace
-    
+
     def generate(self, args, constraints):
         trace = DMLTrace(self, args)
         log_weight = torch.tensor(0.0, requires_grad=False)
-    
+
         def gentrace(callee, args, addr=None):
             if isinstance(callee, DMLGenFn):
                 # recursive calls to this 'gentrace'
@@ -89,7 +89,7 @@ class DMLGenFn(GenFn):
                 return callee(*args)
             else:
                 raise RuntimeError("Unknown type of generative function: {callee}")
-    
+
         p = _inject_variables({"gentrace" : gentrace}, self.p)
         with torch.inference_mode(mode=True):
             trace.retval = p(*args)
@@ -97,7 +97,7 @@ class DMLGenFn(GenFn):
 
 
 class DMLTrace(Trace):
-    
+
     def __init__(self, gen_fn, args):
         self.gen_fn = gen_fn
         self.args = args
@@ -143,7 +143,7 @@ class DMLTrace(Trace):
             elif isinstance(callee, GenDist):
                 if addr == None:
                     raise RuntimeError("Address must be provided for a GenDist call")
-                    
+
                 has_previous = (addr in self.choices)
                 constrained = (addr in constraints)
 
@@ -172,7 +172,7 @@ class DMLTrace(Trace):
                 return callee(*args)
             else:
                 raise RuntimeError("Unknown type of generative function: {callee}")
-    
+
         p = _inject_variables({"gentrace" : gentrace}, self.get_gen_fn().p)
         with torch.inference_mode(mode=True):
             new_trace.retval = p(*args)
@@ -181,7 +181,7 @@ class DMLTrace(Trace):
         for (addr, value) in self.get_choices().items():
             if not addr in new_trace.choices:
                 discard[addr] = value
-                
+
         return (new_trace, log_weight, discard)
 
 
@@ -192,9 +192,9 @@ class DMLTrace(Trace):
         with torch.inference_mode(mode=False):
             score = torch.tensor(0.0, requires_grad=False)
             choice_dict = {}
-        
+
             def gentrace(callee, args, addr=None):
-                nonlocal score 
+                nonlocal score
                 if isinstance(callee, DMLGenFn):
                     # recursive calls to this 'gentrace'
                     return splice_dml_call(callee, args, addr, gentrace)
@@ -217,7 +217,7 @@ class DMLTrace(Trace):
                     return callee(*args)
                 else:
                     raise RuntimeError("Unknown type of generative function: {callee}")
-        
+
             p = _inject_variables({"gentrace" : gentrace}, self.gen_fn.p)
             args_tracked = tuple(
                 arg.detach().clone().requires_grad_(True) if isinstance(arg, torch.Tensor) else arg
@@ -240,17 +240,17 @@ class DMLTrace(Trace):
                 leaf_value.requires_grad_(False)
 
         return (arg_grads, choice_dict, grad_dict)
-    
+
     def accumulate_param_gradients(self, retgrad, scale_factor):
         with torch.inference_mode(mode=False):
             score = torch.tensor(0.0, requires_grad=False)
             choice_dict = {}
-        
+
             def gentrace(callee, args, addr=None):
-                nonlocal score 
+                nonlocal score
                 if isinstance(callee, DMLGenFn):
                     # recursive calls to this 'gentrace'
-                    return splice_dml_call(callee, args, addr, gentrace) 
+                    return splice_dml_call(callee, args, addr, gentrace)
                 elif isinstance(callee, GenDist):
                     if addr == None:
                         raise RuntimeError("Address must be provided for non-DML call")
@@ -264,7 +264,7 @@ class DMLTrace(Trace):
                     return callee(*args)
                 else:
                     raise RuntimeError("Unknown type of generative function: {callee}")
-        
+
             p = _inject_variables({"gentrace" : gentrace}, self.gen_fn.p)
             args_tracked = tuple(
                 arg.detach().requires_grad_(True) if isinstance(arg, torch.Tensor) else arg
@@ -277,7 +277,7 @@ class DMLTrace(Trace):
             for param in self.get_gen_fn().get_torch_nn_module().parameters():
                 if param.grad != None:
                     param.grad.mul_(1.0 / scale_factor)
-            
+
             # then accumulate gradient with scale factor of 1
             if retval.requires_grad:
                 retval.backward(gradient=retval_grad, retain_graph=False)

@@ -26,7 +26,7 @@ def check_choices(n, choices):
     assert choices[addr]
 
 def get_expected_score(prob, n):
-    return torch.log(1.0 - torch.tensor(prob)) * (n-1) + torch.log(torch.tensor(prob)) 
+    return torch.log(1.0 - torch.tensor(prob)) * (n-1) + torch.log(torch.tensor(prob))
 
 def test_simulate():
     prob = 0.4
