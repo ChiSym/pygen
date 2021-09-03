@@ -62,6 +62,8 @@ Some core features of Gen have not yet been added to this implementation:
 
 - Only fragments of the inference library have been implemented; but because the GFI was directly ported from Gen.jl it is straightforward to port the inference library code from Gen.jl (see e.g. `src/pygen/inflib/mcmc.py` for an example).
 
+- The involution DSL has not been implemented (reference material for an implementation includes the PyTorch [implementation from the AIMCMC paper](https://github.com/probcomp/autoimcmc), the Gen.jl implementation, and [GenTraceKernelDSL.jl](https://github.com/probcomp/GenTraceKernelDSL.jl)).
+
 Running on a GPU has not been tested, and no implementation effort has been spent on this.
 
 ## Next steps
