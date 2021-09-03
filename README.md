@@ -68,6 +68,8 @@ Running on a GPU has not been tested, and no implementation effort has been spen
 
 Natural next steps are to:
 
+- Implement benchmarks using this DML implementation (which has full functional capability of Gen.jl for the purposes of benchmarking performance of inference and learning programs, just lacking performance optimizations and engineering extensibility).
+
 - Implement a GenList data type, following [GenCollections.jl](https://github.com/probcomp/GenCollections.jl)), and including combinators and incremental computation and automatic differentiation support, using [`pyrsistent`](https://github.com/tobgu/pyrsistent).
 
 - Add support for hierarchical namespaces. This means that new types will likely be needed for selections and choice maps.
