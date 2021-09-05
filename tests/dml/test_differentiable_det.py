@@ -78,11 +78,11 @@ def test_update():
 
 def check_param_gradients_unset_or_zero():
     for param in f.get_torch_nn_module().parameters():
-        assert param.grad == None or torch.equal(param.grad, torch.zeros_like(param))
+        assert param.grad is None or torch.equal(param.grad, torch.zeros_like(param))
 
 def check_param_gradients_nonzero():
     for param in f.get_torch_nn_module().parameters():
-        assert param.grad != None
+        assert param.grad is not None
         assert not torch.equal(param.grad, torch.zeros_like(param))
 
 def test_choice_gradients():
