@@ -296,3 +296,6 @@ class DMLTrace(Trace):
 
 def gendml(p):
     return DMLGenFn(p)
+
+def gentrace(*args):
+    raise NotImplementedError(("gentrace", args))
