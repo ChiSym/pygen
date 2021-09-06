@@ -95,6 +95,10 @@ class DMLGenFn(GenFn):
             trace.retval = p(*args)
         return (trace, log_weight)
 
+    def __call__(self, *args):
+        trace = self.simulate(args)
+        return trace.get_retval()
+
 
 class DMLTrace(Trace):
 
