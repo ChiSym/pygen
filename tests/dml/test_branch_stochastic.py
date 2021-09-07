@@ -76,3 +76,16 @@ def test_generate():
     assert "y" in choices
     assert "b" in choices
     assert len(choices) == 3
+
+def test_update():
+    mu = 0.123
+    constraints = {"branch": torch.tensor(0.0)}
+    (trace, log_weight) = foo.generate((mu,), constraints)
+    choices = trace.get_choices()
+
+    (new_trace, new_log_weight, discard) = trace.update((mu,), {"branch": torch.tensor(1.0)})
+
+    assert len(discard) == 3
+    assert "y" in discard
+    assert "b" in discard
+    
