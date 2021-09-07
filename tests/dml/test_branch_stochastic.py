@@ -60,5 +60,19 @@ def test_generate():
     (trace, log_weight) = foo.generate((mu,), constraints)
     choices = trace.get_choices()
     assert choices["branch"] == torch.tensor(1.0)
+    assert "x" in choices
+    assert "a" in choices
+    assert "y" not in choices
+    assert "b" not in choices
+    assert len(choices) == 3
 
-    
+    mu = 0.123
+    constraints = {"branch": torch.tensor(0.0)}
+    (trace, log_weight) = foo.generate((mu,), constraints)
+    choices = trace.get_choices()
+    assert choices["branch"] == torch.tensor(0.0)
+    assert "x" not in choices
+    assert "a" not in choices
+    assert "y" in choices
+    assert "b" in choices
+    assert len(choices) == 3
