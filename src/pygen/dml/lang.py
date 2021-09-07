@@ -160,7 +160,7 @@ class DMLTrace(Trace):
                     new_value = prev_value
                 else:
                     subtrace = callee.simulate(args)
-                    new_value = subtrace.get_value()
+                    new_value = subtrace.get_retval()
 
                 new_score = callee.logpdf(args, new_value)
                 nonlocal log_weight
