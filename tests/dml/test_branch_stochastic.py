@@ -2,6 +2,7 @@ from pygen.dml.lang import gendml
 from pygen.dists import bernoulli, normal
 import torch
 
+
 @gendml
 def bar(mu):
     gentrace(normal, (mu, 1), "a")
@@ -88,4 +89,46 @@ def test_update():
     assert len(discard) == 3
     assert "y" in discard
     assert "b" in discard
-    
+
+def test_regenerate():
+    mu = 0.123
+    constraints = {"branch": torch.tensor(0.0)}
+    (trace, log_weight) = foo.generate((mu,), constraints)
+
+    for i in range(10):
+        prev_choices = trace.get_choices()
+        prev_mu = mu
+
+        mu = torch.distributions.normal.Normal(0, 1).sample()
+        (trace, weight) = foo.regenerate(trace, (mu,), ("branch"))
+        choices = trace.get_choices()
+
+        expected_weight = torch.tensor(0.0)
+        
+        if choices["branch"]:
+            assert torch.isclose(trace.get_score(), get_expected_score(mu, branch, choices["x"], choices["a"], None, None))
+            assert "x" in choices
+            assert "a" in choices
+            assert "y" not in choices
+            assert "b" not in choices
+
+            if prev_choices["branch"]:
+                expected_weight = normal.logpdf((mu, 1), choices["x"]) + normal.logpdf((mu, 1), choices["a"])
+                expected_weight -= (normal.logpdf((prev_mu, 1), choices["x"]) + normal.logpdf((prev_mu, 1), choices["a"]))
+            else:
+                expected_weight = 0
+        else:
+            assert torch.isclose(trace.get_score(), get_expected_score(mu, branch, None, None, choices["y"], choices["b"]))
+            assert "x" not in choices
+            assert "a" not in choices
+            assert "y" in choices
+            assert "b" in choices
+
+            if not prev_choices["branch"]:
+                expected_weight = normal.logpdf((mu, 1), choices["y"]) + normal.logpdf((mu, 1), choices["b"])
+                expected_weight -= (normal.logpdf((prev_mu, 1), choices["y"]) + normal.logpdf((prev_mu, 1), choices["b"]))
+            else:
+                expected_weight = 0
+
+        assert torch.isclose(weight, expected_weight)
+        
