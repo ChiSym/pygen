@@ -20,9 +20,10 @@ def _inject_variables(context, func):
                     del func_globals[var]
         return result
     return new_func
+
 def splice_dml_call(gen_fn, args, addr, gentrace):
     if addr is not None:
-        raise RuntimeError("Address must not be provided for a DML call, got: {addr}")
+        raise RuntimeError(f"Address must not be provided for a DML call, got: {addr}")
     p = _inject_variables({"gentrace" : gentrace}, gen_fn.p)
     return p(*args)
 
@@ -45,20 +46,22 @@ class DMLGenFn(GenFn):
         trace = DMLTrace(self, args)
 
         def gentrace(callee, args, addr=None):
-            if isinstance(callee, DMLGenFn):
-                # recursive calls to this 'gentrace'
-                return splice_dml_call(callee, args, addr, gentrace)
-            elif isinstance(callee, GenDist):
+            if isinstance(callee, GenFn):
                 if addr is None:
-                    raise RuntimeError("Address must be provided for a GenDist call")
-                subtrace = callee.simulate(args)
-                trace._record_choice(subtrace, addr)
-                return subtrace.get_retval()
+                    if not isinstance(callee, DMLGenFn):
+                        raise RuntimeError("Address required when"
+                            f" calling a non-DML generative function: {callee}")
+                    return splice_dml_call(callee, args, addr, gentrace)
+                else:
+                    subtrace = callee.simulate(args)
+                    trace._record_subtrace(subtrace, addr) # TODO impl.
+                    return subtrace.get_retval()
             elif isinstance(callee, torch.nn.Module):
                 self._record_torch_nn_module(callee)
                 return callee(*args)
             else:
-                raise RuntimeError("Unknown type of generative function: {callee}")
+                raise RuntimeError("Unknown type of generative function:"
+                    f" {callee}")
 
         p = _inject_variables({"gentrace" : gentrace}, self.p)
         with torch.inference_mode(mode=True):
@@ -88,7 +91,7 @@ class DMLGenFn(GenFn):
                 self._record_torch_nn_module(callee)
                 return callee(*args)
             else:
-                raise RuntimeError("Unknown type of generative function: {callee}")
+                raise RuntimeError(f"Unknown type of generative function: {callee}")
 
         p = _inject_variables({"gentrace" : gentrace}, self.p)
         with torch.inference_mode(mode=True):
@@ -132,7 +135,8 @@ class DMLTrace(Trace):
     def get_retval(self):
         return self.retval
 
-    def get_choices(self):
+    def get_choice_trie(self):
+        # TODO use MutableChoiceTrie
         return self.choices
 
     def update(self, args, constraints):
@@ -175,7 +179,7 @@ class DMLTrace(Trace):
                 self.get_gen_fn()._record_torch_nn_module(callee)
                 return callee(*args)
             else:
-                raise RuntimeError("Unknown type of generative function: {callee}")
+                raise RuntimeError(f"Unknown type of generative function: {callee}")
 
         p = _inject_variables({"gentrace" : gentrace}, self.get_gen_fn().p)
         with torch.inference_mode(mode=True):
@@ -220,7 +224,7 @@ class DMLTrace(Trace):
                         param.requires_grad_(False)
                     return callee(*args)
                 else:
-                    raise RuntimeError("Unknown type of generative function: {callee}")
+                    raise RuntimeError(f"Unknown type of generative function: {callee}")
 
             p = _inject_variables({"gentrace" : gentrace}, self.gen_fn.p)
             args_tracked = tuple(
@@ -267,7 +271,7 @@ class DMLTrace(Trace):
                         param.requires_grad_(True)
                     return callee(*args)
                 else:
-                    raise RuntimeError("Unknown type of generative function: {callee}")
+                    raise RuntimeError(f"Unknown type of generative function: {callee}")
 
             p = _inject_variables({"gentrace" : gentrace}, self.gen_fn.p)
             args_tracked = tuple(
