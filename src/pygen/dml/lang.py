@@ -1,4 +1,6 @@
 from ..gfi import GenFn, Trace
+from ..address import ChoiceAddress
+from ..choice_trie import ChoiceTrie
 from ..dists import GenDist, GenDistTrace
 from functools import wraps
 import torch
@@ -22,6 +24,9 @@ def _inject_variables(context, func):
     return new_func
 
 def splice_dml_call(gen_fn, args, addr, gentrace):
+    if not isinstance(gen_fn, DMLGenFn):
+        raise RuntimeError("Address required when"
+            f" calling a non-DML generative function: {callee}")
     if addr is not None:
         raise RuntimeError(f"Address must not be provided for a DML call, got: {addr}")
     p = _inject_variables({"gentrace" : gentrace}, gen_fn.p)
@@ -46,11 +51,9 @@ class DMLGenFn(GenFn):
         trace = DMLTrace(self, args)
 
         def gentrace(callee, args, addr=None):
+            assert (addr is None) or isinstance(addr, ChoiceAddress)
             if isinstance(callee, GenFn):
                 if addr is None:
-                    if not isinstance(callee, DMLGenFn):
-                        raise RuntimeError("Address required when"
-                            f" calling a non-DML generative function: {callee}")
                     return splice_dml_call(callee, args, addr, gentrace)
                 else:
                     subtrace = callee.simulate(args)
@@ -69,33 +72,14 @@ class DMLGenFn(GenFn):
         return trace
 
     def generate(self, args, constraints):
+        assert isinstance(constraints, ChoiceTrie)
         trace = DMLTrace(self, args)
         log_weight = torch.tensor(0.0, requires_grad=False)
 
         def gentrace(callee, args, addr=None):
+            assert (addr is None) or isinstance(addr, ChoiceAddress)
             if isinstance(callee, GenFn):
                 if addr is None:
-                    if not isinstance(callee, DMLGenFn):
-                        raise RuntimeError("Address required when"
-                            f" calling a non-DML generative function: {callee}")
-                    return splice_dml_call(callee, args, addr, gentrace)
-                else:
-                    subtrace = callee.simulate(args)
-                    trace._record_subtrace(subtrace, addr)
-                    return subtrace.get_retval()
-            elif isinstance(callee, torch.nn.Module):
-                self._record_torch_nn_module(callee)
-                return callee(*args)
-            else:
-                raise RuntimeError("Unknown type of generative function:"
-                    f" {callee}")
-
-        def gentrace(callee, args, addr=None):
-            if isinstance(callee, GenFn):
-                if addr is None:
-                    if not isinstance(callee, DMLGenFn):
-                        raise RuntimeError("Address required when"
-                            f" calling a non-DML generative function: {callee}")
                     return splice_dml_call(callee, args, addr, gentrace)
                 else:
                     # constraints = {"a" : { "b" : { () : 1.123 } } }
@@ -135,27 +119,36 @@ class DMLTrace(Trace):
         self.empty_address_subtrace = None
         self.subtraces_trie = {}
 
-    def _record_subtrace_in_subtraces_trie(subtraces_trie, addr, subtrace):
-        assert addr
+    def _record_subtrace_in_subtraces_trie(subtraces_trie, addr, subtrace, full_addr):
+        assert isinstance(addr, ChoiceAddress) and addr
         first = addr.first()
         rest = addr.rest()
         if not rest:
+            if first in self.subtraces_trie:
+                raise RuntimeError(f'Address {full_addr} already visited; cannot sample a choice at it')
             self.subtraces_trie[first] = subtrace
         else:
             if first not in subtraces_trie:
                 subtraces_trie[first] = {}
-            DMLTrace._record_subtrace_in_subtraces_trie(subtraces_trie[first], rest, subtrace)
+            DMLTrace._record_subtrace_in_subtraces_trie(subtraces_trie[first], rest, subtrace, full_addr)
 
     def _record_subtrace(self, subtrace, addr):
+        assert isinstance(subtrace, Trace)
+        assert isinstance(addr, ChoiceAddress)
         value = subtrace.get_retval()
         assert not value.requires_grad
         if not addr:
-            if (self.empty_address_subtrace is not None) or len(subtraces_trie) > 0:
-                raise RuntimeError("the empty address may be visited at most once,"
-                    " and must be the only address visited")
+            if (self.empty_address_subtrace is not None) or subtraces_trie:
+                raise RuntimeError('the empty address may be visited at most once,'
+                    f' and must be the only address visited, but address {next(iter(subtraces_trie))}'
+                    ' was also visited')
             self.empty_address_subtrace = subtrace
         else:
-            DMLTrace._record_subtrace_in_subtraces_trie(self.subtraces_trie, addr, subtrace)
+            if self.empty_address_subtrace is not None:
+                raise RuntimeError('the empty address may be visited at most once,'
+                    f' and must be the only address visited, but address {addr}'
+                    'was also visited')
+            DMLTrace._record_subtrace_in_subtraces_trie(self.subtraces_trie, addr, subtrace, addr)
         score_increment = subtrace.get_score()
         self.score += score_increment
 
@@ -172,6 +165,7 @@ class DMLTrace(Trace):
         return self.retval
 
     def _to_choice_trie(subtraces_trie):
+        # subtraces_trie is a trie where leafs are Traces
         assert isinstance(subtraces_trie, dict)
         trie = MutableChoiceTrie()
         for (k, v) in subtraces_trie.items():
@@ -184,58 +178,52 @@ class DMLTrace(Trace):
     def get_choice_trie(self):
         if self.empty_address_subtrace is not None:
             trie = MutableChoiceTrie()
-            trie[()] = self.empty_address.subtrace.get_retval()
+            trie[addr()] = self.empty_address.subtrace.get_retval()
             return trie
         else:
             DMLTrace._to_choice_trie(self.subtraces_trie)
 
     def update(self, args, constraints):
         new_trace = DMLTrace(self.get_gen_fn(), args)
-        discard = {}
+        discard = MutableChoiceTrie()
         log_weight = torch.tensor(0.0, requires_grad=False)
 
         def gentrace(callee, args, addr=None):
-            if isinstance(callee, DMLGenFn):
-                # recursive calls to this 'gentrace'
-                return splice_dml_call(callee, args, addr, gentrace)
-            elif isinstance(callee, GenDist):
+            assert (addr is None) or isinstance(addr, ChoiceAddress)
+            if isinstance(callee, GenFn):
                 if addr is None:
-                    raise RuntimeError("Address must be provided for a GenDist call")
-
-                has_previous = (addr in self.choices)
-                constrained = (addr in constraints)
-
-                if has_previous:
-                    prev_value = self.choices[addr]
-                    prev_score = self.choice_scores[addr]
-
-                if constrained and has_previous:
-                    discard[addr] = prev_value
-
-                if constrained:
-                    new_value = constraints[addr]
-                elif has_previous:
-                    new_value = prev_value
+                    return splice_dml_call(callee, args, addr, gentrace)
                 else:
-                    subtrace = callee.simulate(args)
-                    new_value = subtrace.get_retval()
-
-                new_score = callee.logpdf(args, new_value)
-                nonlocal log_weight
-                log_weight += new_score
-                new_trace._record_choice(GenDistTrace(new_value, new_score), addr)
-                return new_value
+                    nonlocal log_weight
+                    if self._has_subtrace(addr):
+                        prev_callee = self._get_subtrace(addr)
+                        if prev_callee != callee:
+                            raise RuntimeError(f'Generative function at address {addr}'
+                                'changed from {prev_callee} to {callee}')
+                        (subtrace, log_weight_incr, sub_discard) = self._get_subtrace(addr).update(
+                            args, constraints.get_subtrie(addr))
+                        discard.set_subtrie(addr, sub_discard)
+                    else:
+                        (subtrace, log_weight_incr) = callee.generate(
+                            args, constraints.get_subtrie(addr))
+                    log_weight += log_weight_incr
+                    trace._record_subtrace(subtrace, addr)
+                    return subtrace.get_retval()
             elif isinstance(callee, torch.nn.Module):
-                self.get_gen_fn()._record_torch_nn_module(callee)
+                self._record_torch_nn_module(callee)
                 return callee(*args)
             else:
-                raise RuntimeError(f"Unknown type of generative function: {callee}")
+                raise RuntimeError("Unknown type of generative function:"
+                    f" {callee}")
 
         p = _inject_variables({"gentrace" : gentrace}, self.get_gen_fn().p)
         with torch.inference_mode(mode=True):
             new_trace.retval = p(*args)
 
-        log_weight -= self.get_score()
+        #log_weight -= self.get_score()
+        # TODO we need to subtract out the score contributions from subtraces that were removed
+
+        # TODO we need to compute the discard correctly:
         for (addr, value) in self.get_choices().items():
             if not addr in new_trace.choices:
                 discard[addr] = value

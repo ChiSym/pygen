@@ -1,18 +1,22 @@
 from .gfi import Trace, GenFn
-from .choice_trie import MutableChoiceTrie
+from .address import addr, ChoiceAddress
+from .choice_trie import ChoiceTrie, MutableChoiceTrie
 import torch
 
-class PyTorchDist(GenFn):
+class TorchDist(GenFn):
     pass
 
-class PyTorchDistTrace(Trace):
+class TorchDistTrace(Trace):
 
     def __init__(self, gen_fn, args, value, lpdf):
-        assert isinstance(gen_fn, PyTorchDist)
+        assert isinstance(gen_fn, TorchDist)
         self.gen_fn
         self.args = args
         self.value = value
         self.lpdf = lpdf
+
+    def get_gen_fn(self):
+        return self.gen_fn
 
     def get_args(self):
         return self.args
@@ -24,21 +28,24 @@ class PyTorchDistTrace(Trace):
         return self.value
 
     def get_choice_trie(self):
-        return MutableChoiceTrie({(): self.value)
+        return MutableChoiceTrie({addr(): self.value)
 
     def update(self, args, choice_trie):
+        assert isinstance(choice_trie, ChoiceTrie)
         discard = MutableChoiceTrie()
         prev_value = self.value
         if not choice_trie:
+            # choice_trie is empty
             value = prev_value
         else:
-            discard[()] = prev_value
+            # choice_trie is not empty
             value = _check_is_primitive_and_get_value(choice_trie)
+            discard[addr()] = prev_value
         new_dist = self.gen_fn.get_dist_class()(*args)
         new_lpdf = new_dist.log_prob(value).sum()
         prev_lpdf = self.lpdf
         log_weight = new_lpdf - prev_lpdf
-        new_trace = PyTorchDistTrace(self.gen_fn, args, value, new_lpdf)
+        new_trace = TorchDistTrace(self.gen_fn, args, value, new_lpdf)
         return (new_trace, log_weight, discard)
 
     def regenerate(self, args, selection):
@@ -56,7 +63,7 @@ class PyTorchDistTrace(Trace):
 
 def torch_dist_to_gen_fn(dist_class):
 
-    class gen_fn_class(PyTorchDist):
+    class gen_fn_class(TorchDist):
 
         def __init__(self):
             self.dist_class = dist_class
@@ -67,19 +74,19 @@ def torch_dist_to_gen_fn(dist_class):
         def _check_is_primitive_and_get_value(choice_trie):
             if not choice_trie.is_primitive():
                 raise RuntimError(f'choice_trie is not primitive: {choice_trie}')
-            return choice_trie[()]
+            return choice_trie[addr()]
 
         def simulate(self, args):
             dist = dist_class(*args)
             value = dist.sample()
             lpdf = dist.log_prob(value).sum()
-            return PyTorchDistTrace(self, value, lpdf)
+            return TorchDistTrace(self, value, lpdf)
     
         def generate(self, args, choice_trie):
             value = _check_is_primitive_and_get_value(choice_trie)
             dist = dist_class(*args)
             lpdf = dist.log_prob(value).sum()
-            return (PyTorchDistTrace(self, value, lpdf), lpdf)
+            return (TorchDistTrace(self, value, lpdf), lpdf)
 
         # TODO this is an optimization; we would normally have to call choice_gradients or accum_param_grads
         def logpdf(self, args, value):
