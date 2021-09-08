@@ -1,30 +1,26 @@
 # Addresses
 
-- implement a new Python `pygen.Address` class
+There will be a new Python `pygen.Address` class
 
-- addresses are immutable
+`Address`es are immutable
 
-- hashable; store the hash in the object
+`Address`es are hashable (store the hash in the object)
 
-- a shorthand `pygen.addr` helper-constructor (but it won't be used most often)
+There is a shorthand `pygen.addr` helper-constructor that can be used: `addr("a", "b", "c")`; `addr()` is used to construct the empty address; `addr("")` is not the empty address.
 
-- `if a` (( semantically equivalent to `a is ()` if addresses were tuples )); override conversion to boolean so we can do 'if a' to be Pythonic
+An address may be the 'empty address' (semantically equivalent to `()` if addresses were tuples).
 
-- `a.first()` (( semantically equiv. to `a[0]`; or error if `a is ()` if addresses were tuples ))
+Testing if an address is the empty address is done with the Pythonic expression `if a`. This is semantically equivalent to `a is ()` if addresses were tuples.
 
-- `a.rest()` (( semantically, equiv to `a[1:]`; or error if `a is ()` if addresses were tuples ))
+Getting the first element of an address via a `first()` method (semantically equivalent to `a[0]` or error if `a is ()`; if addresses were tuples).
 
-- override `len(a)`?
+Getting the rest (another `Address`)  via a `rest()` method (semantically, equivalent to `a[1:]` or error if `a is ()`; if addresses were tuples).
 
-- `addr("a", "b", "c", "d")`
+Override `len(a)`
 
-- `addr()` constructs the empty address
+Implementation notes: there are a few possible internal representations one can use for addresses:
 
-- `addr("")` is not the empty address
-
-implementation notes: there are a few possible internal representations one can use for addresses:
-
-tuples (arrays):
+tuples:
 ```
 ("a", "b", "c")
 ("a", "b", ("c", "d"))
@@ -32,15 +28,15 @@ tuples (arrays):
 ```
 which has O(n) `rest()` implementation where n is the depth of the address
 
-Gen.jl essentially uses this:
+Gen.jl essentially uses a linked list:
 ```
 ("a", ("b", ("c",))) 
 ("a", ("b", ("c", "d")))
 ("a", ("b", ("c", ("d",))))
 ```
-which has O(1) `rest()` implementation
+which has O(1) `rest()` implementation.
 
-# DML addressing syntax
+# Syntax for invoking traced code in DML
 
 `gentrace(other_dml_function, (0, 1), None)` equivalent to @trace(other_dml_function(0, 1)) in Gen.jl
 
@@ -81,15 +77,7 @@ In Gen.jl currently, @trace(feras_mvnormal(..), :a => :b)
          |-3 : 1.12313
 
 
-# Unlike Gen.jl, primitive distributions are also generative functions
-
-A 'primitive distribution' is a generative function that:
-
-- always samples a value at addres ()
-
-- the return value is always the value of the address
-
-# possible syntax improvements
+# Possible syntax improvements
 
 Is it possible to remove the `gentrace` keyword or equivalent entirely? e.g.:
 
@@ -99,23 +87,146 @@ Is it possible to remove the `gentrace` keyword or equivalent entirely? e.g.:
 
 closer to an embedded language, because it doesnt have 'gentrace'
 
-# Choice Maps
+# Unlike Gen.jl, primitive distributions are also generative functions
 
-cm.has_value(addr)
-cm.get_submap(addr)
-cm.get_value(addr)
+A 'primitive distribution' is a generative function that:
 
-m = choicemap(
-    (:a => :b => :c, 5.0))
+- always samples a value at the empty address
 
-m = choicemap()
-m[:a => :b => :c] = 5.0
+- the return value is always the value at the empty address
 
-m[:a => :b => :c]
+Note that it is possible to implement primitive distributions by writing regular generative functions, as long as they conform to those rules.
 
-set_submap!
+# Choice tries
 
+We should rename 'ChoiceMaps' to 'ChoiceTrie'.
+
+`ChoiceTrie` will have a `flatten()` method that returns a 'ChoiceDict' or a Python `dict` (see below)
+
+Standard recursive walking pattern:
+
+    def my_walker(trie):
+        for (k, sub_trie) in trie.items():
+            if sub_trie.is_primitive():
+                value = subtrie[] # error if it is not primitive
+                .. do stuff ..
+            else:
+                result = my_walker(sub_trie)
+                .. do stuff ..
+
+The getindex method removes noise of empty addresses for the user:
+
+    assert trie["a"] == 1.123 # where trie = {"a": {(): 1.123}}
+
+Due to the noise-removal, there would be an ambiguity for the user, but this ambiguity is removed by providing an `is_primitive(addr)` method:
+
+    trie = {"b" : {"a" : {(): 1.123}}}
+    assert not trie.is_primitive("b")
+    assert trie["b"] == {"a" : {(): 1.123}} # this is a submap
+
+    trie = {"b" : {(): {"a" : {(): 1.123}}}}
+    assert trie.is_primitive("b")
+    assert trie["b"] == {"a" : {(): 1.123}} # this is a choice
+
+Starter implementation:
+
+    class ChoiceTrie:
+        
+        def __init__(self):
+            self.dict = {}
+
+        def is_primitive(self, addr):
+            # TODO check if the submap at address is a primitive choice map or not
+
+        def num_choices(self):
+            # TODO for immutable, cache it
+            if self.is_primitive():
+                return 1
+            else:
+                total = 0
+                for (k, sub_trie) in self.dict.items():
+                    total += sub_trie.num_choices()
+                return total
+
+        # indexing into a choice map means either retreiving the submap (if the
+        # sub-choice-trie is not primtive) or the value (if it is primitive)
+        def getindex(self, addr):
+            subtrie = self.dict[addr]
+            assert isinstance(subtrie, ChoiceTrie)
+            if subtrie.is_primitive():
+                return subtrie.dict[()]
+            else:
+                return subtrie
+
+        def get_primitives(self):
+            # TODO dict.items() iterator, like get_values_shallow() in Gen.jl
+
+        def get_submaps(self):
+            # TODO dict.items() iterator, like get_submaps_shallow() in Gen.jl
+
+        def flatten(self):
+            # TODO returns a Python dictionary, or an object (ChoiceDict) that
+            # has the same interface as a dictionary view, where keys are
+            # multi-part addresses
+
+Iteration is 
+
+To iterate over all the random choices in a choice trie:
+
+    for (k, v) in trie.flatten().items():
+        # ...
+
+There may be some other methods also (e.g. to_array and from_array?)
+
+'Mutable choice maps'
+
+    cm = choicemap() in Gen.jl
+    cm[:a] = 1
+    cm.set_value!
+    cm.set_submap!
+
+'choice maps that come from trace.get_choices()'
+views onto the trace data structure
+
+    m = choicemap(
+        (:a => :b => :c, 5.0))
+
+    m = choicemap()
+    m[:a => :b => :c] = 5.0
+
+    m[:a => :b => :c]
+
+    set_submap!
 
 # selection API
 
+    s = select(("a", "b"), ("a", "c"), "d")
+    {("a", "b", ...)} U {("a", "c", ...)} U {("d", ...)}
+
+the definition of s[.] 
+
+    s["a"]
+    {("b", ...)} U {("c", ...)}
+
+complement(s)
+
+    ({("a", "b", ...)} U {("a", "c", ...)} U {("d", ...)})^C
+
+    complement(s)["a"] = complement(s["a"])
+
 selections are sets of addresses?
+
+current issue in Gen.jl:
+    
+    @gen function foo(x)
+        y ~ normal(x, 1)
+        return y
+    end
+
+    bar = Map(foo)
+
+    Gen.regenerate(bar, ([1, 2, 3],), select(1 => :y))
+
+    Gen.regenerate(bar, ([1, 2, 3],), complement(select(1 => :y))) # this will currently crash
+
+    Gen.regenerate(bar, ([1, 2, 3],), AllSelection())
