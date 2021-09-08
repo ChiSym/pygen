@@ -46,22 +46,38 @@ class DMLGenFn(GenFn):
         trace = DMLTrace(self, args)
 
         def gentrace(callee, args, addr=None):
-            if isinstance(callee, GenFn):
+            if isinstance(callee, DMLGenFn):
+                # recursive calls to this 'gentrace'
+                return splice_dml_call(callee, args, addr, gentrace)
+            elif isinstance(callee, GenDist):
                 if addr is None:
-                    if not isinstance(callee, DMLGenFn):
-                        raise RuntimeError("Address required when"
-                            f" calling a non-DML generative function: {callee}")
-                    return splice_dml_call(callee, args, addr, gentrace)
-                else:
-                    subtrace = callee.simulate(args)
-                    trace._record_subtrace(subtrace, addr) # TODO impl.
-                    return subtrace.get_retval()
+                    raise RuntimeError("Address must be provided for a GenDist call")
+                subtrace = callee.simulate(args)
+                trace._record_choice(subtrace, addr)
+                return subtrace.get_retval()
             elif isinstance(callee, torch.nn.Module):
                 self._record_torch_nn_module(callee)
                 return callee(*args)
             else:
-                raise RuntimeError("Unknown type of generative function:"
-                    f" {callee}")
+                raise RuntimeError("Unknown type of generative function: {callee}")
+
+        #def gentrace(callee, args, addr=None):
+            #if isinstance(callee, GenFn):
+                #if addr is None:
+                    #if not isinstance(callee, DMLGenFn):
+                        #raise RuntimeError("Address required when"
+                            #f" calling a non-DML generative function: {callee}")
+                    #return splice_dml_call(callee, args, addr, gentrace)
+                #else:
+                    #subtrace = callee.simulate(args)
+                    #trace._record_subtrace(subtrace, addr) # TODO impl.
+                    #return subtrace.get_retval()
+            #elif isinstance(callee, torch.nn.Module):
+                #self._record_torch_nn_module(callee)
+                #return callee(*args)
+            #else:
+                #raise RuntimeError("Unknown type of generative function:"
+                    #f" {callee}")
 
         p = _inject_variables({"gentrace" : gentrace}, self.p)
         with torch.inference_mode(mode=True):
@@ -135,7 +151,8 @@ class DMLTrace(Trace):
     def get_retval(self):
         return self.retval
 
-    def get_choice_trie(self):
+    # TODO rename to get_choice_trie
+    def get_choices(self):
         # TODO use MutableChoiceTrie
         return self.choices
 
