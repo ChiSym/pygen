@@ -2,6 +2,7 @@ from pygen.dml.lang import gendml
 from pygen.dists import bernoulli, normal
 from pygen.inflib.importance import importance_sampling_custom_proposal
 from pygen.inflib.importance import importance_resampling_custom_proposal
+from pygen import gentrace
 import torch
 import timeit
 

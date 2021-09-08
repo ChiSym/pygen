@@ -1,6 +1,7 @@
 from pygen.dml.lang import gendml
 from pygen.dists import bernoulli, normal
 from pygen.inflib.mcmc import mh_custom_proposal
+from pygen import gentrace
 import torch
 import timeit
 

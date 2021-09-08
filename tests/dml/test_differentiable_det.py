@@ -1,5 +1,6 @@
 from pygen.dml.lang import gendml
 from pygen.dists import bernoulli, normal
+from pygen import gentrace
 import torch
 import torch.nn as nn
 
