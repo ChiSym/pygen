@@ -31,6 +31,17 @@ Run pytest from the root directory of the repository:
 python -m pytest tests
 ```
 
+To generate a coverage report for the test suite, first install coverage:
+```
+python -m pip install coverage
+```
+
+Run the coverage script and inspect the results
+```
+./coverage.sh
+xdg-open htmlcov/index.html
+```
+
 ## Design
 
 The modeling language implements the same GFI as Gen.jl but with a few tweaks (see limitations).
