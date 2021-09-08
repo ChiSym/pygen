@@ -1,0 +1,121 @@
+# Addresses
+
+- implement a new Python `pygen.Address` class
+
+- addresses are immutable
+
+- hashable; store the hash in the object
+
+- a shorthand `pygen.addr` helper-constructor (but it won't be used most often)
+
+- `if a` (( semantically equivalent to `a is ()` if addresses were tuples )); override conversion to boolean so we can do 'if a' to be Pythonic
+
+- `a.first()` (( semantically equiv. to `a[0]`; or error if `a is ()` if addresses were tuples ))
+
+- `a.rest()` (( semantically, equiv to `a[1:]`; or error if `a is ()` if addresses were tuples ))
+
+- override `len(a)`?
+
+- `addr("a", "b", "c", "d")`
+
+- `addr()` constructs the empty address
+
+- `addr("")` is not the empty address
+
+implementation notes: there are a few possible internal representations one can use for addresses:
+
+tuples (arrays):
+```
+("a", "b", "c")
+("a", "b", ("c", "d"))
+("a", "b", "c", "d")
+```
+which has O(n) `rest()` implementation where n is the depth of the address
+
+Gen.jl essentially uses this:
+```
+("a", ("b", ("c",))) 
+("a", ("b", ("c", "d")))
+("a", ("b", ("c", ("d",))))
+```
+which has O(1) `rest()` implementation
+
+# DML addressing syntax
+
+`gentrace(other_dml_function, (0, 1), None)` equivalent to @trace(other_dml_function(0, 1)) in Gen.jl
+
+`gentrace(normal, (0, 1), "a")` equivalent to `gentrace(normal, (0, 1), ("a",))`
+
+`gentrace(normal, (0, 1), ())` is supported, but if the callee is not a DML generative function then it must be the only traced call in the whole generative function
+    1.123
+
+`gentrace(normal, (0, 1), ("a",))`
+    "a" - 1.123
+
+`gentrace(normal, (0, 1), ("a", "b"))`
+    ("a", "b") - 1.123
+
+`gentrace(normal, (0, 1), (("a", "b"),))` is 'discouraged' but still possible
+    ("a", "b")
+         |
+         |-1 : 1.1233
+         |-2 : 1.12313
+         |-3 : 1.12313
+
+`gentrace(normal, (0, 1), ("a", "b"))
+    "a"
+    |
+    |--- "b"
+         |
+         |-1 : 1.1233
+         |-2 : 1.12313
+         |-3 : 1.12313
+
+In Gen.jl currently, @trace(feras_mvnormal(..), :a => :b)
+    :a
+    |
+    |--- :b
+         |
+         |-1 : 1.1233
+         |-2 : 1.12313
+         |-3 : 1.12313
+
+
+# Unlike Gen.jl, primitive distributions are also generative functions
+
+A 'primitive distribution' is a generative function that:
+
+- always samples a value at addres ()
+
+- the return value is always the value of the address
+
+# possible syntax improvements
+
+Is it possible to remove the `gentrace` keyword or equivalent entirely? e.g.:
+
+    other_generative_function(0, 1, addr="asdf")
+
+    normal(0, 1, addr="asdf")
+
+closer to an embedded language, because it doesnt have 'gentrace'
+
+# Choice Maps
+
+cm.has_value(addr)
+cm.get_submap(addr)
+cm.get_value(addr)
+
+m = choicemap(
+    (:a => :b => :c, 5.0))
+
+m = choicemap()
+m[:a => :b => :c] = 5.0
+
+m[:a => :b => :c]
+
+set_submap!
+
+
+# selection API
+
+selections are sets of addresses?
