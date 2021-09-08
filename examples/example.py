@@ -61,19 +61,19 @@ print(f"arg_grads: {arg_grads}, choice_values: {choice_values}, choice_grads: {c
 module = model.get_torch_nn_module()
 
 for param in module.parameters():
-    assert param.grad == None or torch.equal(param.grad, torch.zeros_like(param))
+    assert param.grad is None or torch.equal(param.grad, torch.zeros_like(param))
 
 # accumulate param gradients
 arg_grads = trace.accumulate_param_gradients(torch.zeros((5,)), 1.0)
 print(f"arg_grads: {arg_grads}")
 
 for param in module.parameters():
-    assert param.grad != None and not torch.equal(param.grad, torch.zeros_like(param))
+    assert param.grad is not None and not torch.equal(param.grad, torch.zeros_like(param))
 
 module.zero_grad()
 
 for param in module.parameters():
-    assert param.grad != None and torch.equal(param.grad, torch.zeros_like(param))
+    assert param.grad is not None and torch.equal(param.grad, torch.zeros_like(param))
 
 n = 1000
 elapsed = timeit.timeit(lambda: trace.update((10,), {"z" : torch.zeros((10,))}), number=n)

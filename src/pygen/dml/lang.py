@@ -21,7 +21,7 @@ def _inject_variables(context, func):
         return result
     return new_func
 def splice_dml_call(gen_fn, args, addr, gentrace):
-    if addr != None:
+    if addr is not None:
         raise RuntimeError("Address must not be provided for a DML call, got: {addr}")
     p = _inject_variables({"gentrace" : gentrace}, gen_fn.p)
     return p(*args)
@@ -49,7 +49,7 @@ class DMLGenFn(GenFn):
                 # recursive calls to this 'gentrace'
                 return splice_dml_call(callee, args, addr, gentrace)
             elif isinstance(callee, GenDist):
-                if addr == None:
+                if addr is None:
                     raise RuntimeError("Address must be provided for a GenDist call")
                 subtrace = callee.simulate(args)
                 trace._record_choice(subtrace, addr)
@@ -74,7 +74,7 @@ class DMLGenFn(GenFn):
                 # recursive calls to this 'gentrace'
                 return splice_dml_call(callee, args, addr, gentrace)
             elif isinstance(callee, GenDist):
-                if addr == None:
+                if addr is None:
                     raise RuntimeError("Address must be provided for a GenDist call")
                 if addr in constraints:
                     (subtrace, log_weight_incr) = callee.generate(args, constraints[addr])
@@ -141,7 +141,7 @@ class DMLTrace(Trace):
                 # recursive calls to this 'gentrace'
                 return splice_dml_call(callee, args, addr, gentrace)
             elif isinstance(callee, GenDist):
-                if addr == None:
+                if addr is None:
                     raise RuntimeError("Address must be provided for a GenDist call")
 
                 has_previous = (addr in self.choices)
@@ -199,7 +199,7 @@ class DMLTrace(Trace):
                     # recursive calls to this 'gentrace'
                     return splice_dml_call(callee, args, addr, gentrace)
                 elif isinstance(callee, GenDist):
-                    if addr == None:
+                    if addr is None:
                         raise RuntimeError("Address must be provided for non-DML call")
                     value = self.choices[addr]
                     assert not value.requires_grad
@@ -252,7 +252,7 @@ class DMLTrace(Trace):
                     # recursive calls to this 'gentrace'
                     return splice_dml_call(callee, args, addr, gentrace)
                 elif isinstance(callee, GenDist):
-                    if addr == None:
+                    if addr is None:
                         raise RuntimeError("Address must be provided for non-DML call")
                     value = self.choices[addr].detach().clone().requires_grad_(False)
                     assert not value.requires_grad
@@ -275,7 +275,7 @@ class DMLTrace(Trace):
 
             # multiply the existing gradient by 1/scale_factor
             for param in self.get_gen_fn().get_torch_nn_module().parameters():
-                if param.grad != None:
+                if param.grad is not None:
                     param.grad.mul_(1.0 / scale_factor)
 
             # then accumulate gradient with scale factor of 1
