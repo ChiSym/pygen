@@ -6,6 +6,11 @@ import torch
 def f(a, b):
     return a + b
 
+def test_call():
+    assert f(1, 3) == 4
+    assert f('a', 'b') == 'ab'
+    assert f([1], [2]) == [1, 2]
+
 def test_simulate():
 
     t = torch.tensor(2)

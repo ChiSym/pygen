@@ -35,6 +35,11 @@ def model(z_dim):
     binary_img = gentrace(bernoulli, (pixel_probs,), "img")
     return binary_img
 
+# Python call
+binary_img = model(10)
+assert isinstance(binary_img, torch.Tensor)
+assert len(binary_img) == likelihood.fc21.out_features
+
 # simulate
 trace = model.simulate((10,))
 choices = trace.get_choices()
