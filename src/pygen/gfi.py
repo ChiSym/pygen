@@ -32,10 +32,10 @@ class Trace:
     def get_choices(self):
         raise NotImplementedError()
 
-    def update(self, args, change_hints, constraints):
+    def update(self, args, constraints):
         raise NotImplementedError()
 
-    def regenerate(self, args, change_hints, selection):
+    def regenerate(self, args, selection):
         raise NotImplementedError()
 
     def accum_param_grads(self, retgrad, scale_factor):
