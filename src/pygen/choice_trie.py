@@ -3,7 +3,20 @@ class ChoiceTrie:
     def __init__(self):
         raise NotImplementedError()
 
-    def is_primitive(self, key=None):
+    def is_primitive(self):
+        raise NotImplementedError()
+
+    def get_subtrie(self, address):
+        # the address is an arbitrary address, and where the result
+        # is a ChoiceTrie (primitive or not).
+        raise NotImplementedError()
+
+    def set_subtrie(self, key, trie):
+        raise NotImplementedError
+
+    def flatten(self):
+        # TODO returns a Python dictionary that has the same interface as a
+        # dictionary view, where keys are multi-part addresses
         raise NotImplementedError()
 
     def get_primitives(self):
@@ -14,14 +27,13 @@ class ChoiceTrie:
         # TODO dict.items() iterator, like get_submaps_shallow() in Gen.jl
         raise NotImplementedError()
 
-    def flatten(self):
-        # TODO returns a Python dictionary that has the same interface as a
-        # dictionary view, where keys are multi-part addresses
-        raise NotImplementedError()
-
     def __getitem__(self, addr):
         # TODO indexing into a choice map means either retrieving the subtrie
         # (if the subtrie is not primitive) or the value (if it is primitive)
+        raise NotImplementedError()
+
+    def __setitem__(self, addr, value):
+        # Records a primitive choice at addr.
         raise NotImplementedError()
 
     def __iter__(self):
@@ -37,12 +49,23 @@ class MutableChoiceTrie(ChoiceTrie):
     def __init__(self):
         self.trie = {}
 
-    def is_primitive(self, key=None):
-        if key is None:
-            return () in self.trie
+    def is_primitive(self):
+        if () in self.trie:
+            assert len(self.trie) == 1
+            return True
+        return False
+
+    def get_subtrie(self, address):
+        if self.is_primitive():
+            raise RuntimeError('Cannot get_subtrie of primitive MutableChoiceTrie.')
+        key = address.first()
         if key not in self.trie:
-            raise RuntimeError('No such key: %s' % (key,))
-        return self.trie[key].is_primitive()
+            raise IndexError('No such address: %s' % (address,))
+        rest = address.rest()
+        if rest:
+            return self.trie[key].get_subtrie(rest)
+        else:
+            return self.trie[key]
 
     # def flatten(self):
         # if self.is_primitive():
@@ -69,9 +92,9 @@ class MutableChoiceTrie(ChoiceTrie):
             if address:
                 raise IndexError('No such address: %s' % (address,))
             return self.trie[()]
-        # Compound trie with primitive child.
+        # Compound trie
         key = address.first()
-        if self.is_primitive(key):
+        if self.trie[key].is_primitive():
             return self.trie[key].trie[()]
         rest = address.rest()
         if not rest:
@@ -79,11 +102,16 @@ class MutableChoiceTrie(ChoiceTrie):
         return self.trie[key][rest]
 
     def __setitem__(self, address, value):
-        # NOTE: address is an 'ChoiceAddress'
         assert isinstance(address, ChoiceAddress)
         if self.is_primitive():
-            raise RuntimeError('Cannot add choices to a primitive trie.')
-        if not address:
+            # Cannot add new choices.
+            if address:
+                raise RuntimeError('Cannot add choices to a primitive trie.')
+            # Overwrite the primitive choice.
+            self.trie[()] = value
+            return
+        # Write to a compound trie.
+        elif not address:
             if self.trie:
                 raise RuntimeError('Cannot add primitive choice to nonempty trie.')
             self.trie[()] = value
@@ -92,7 +120,7 @@ class MutableChoiceTrie(ChoiceTrie):
             # Create a subtrie.
             if key not in self.trie:
                 self.trie[key] = MutableChoiceTrie()
-            # Allow mutating a primitive child.
+            # Overwrite primitive child with a compound.
             if self.trie[key].is_primitive():
                 self.trie[key] = MutableChoiceTrie()
             # Set the subtrie.
@@ -120,20 +148,36 @@ import pytest
 trie = MutableChoiceTrie()
 trie[addr()] = 1
 assert trie.is_primitive()
+assert trie.asdict() == {(): 1}
+
+# Cannot write to a primitive trie.
 with pytest.raises(RuntimeError):
     trie[addr('a')] = 1
-assert trie[addr()] == 1
-assert trie.asdict() == {(): 1}
+
+# Can overwrite primitive trie.
+trie[addr()] = 2
+assert trie[addr()] == 2
+assert trie.asdict() == {(): 2}
+
+# Cannot get subtrie of primitive trie.
+with pytest.raises(RuntimeError):
+    trie.get_subtrie(addr())
+
+# {'a': {(): 2}}
+# {'a': {'b': {(): 2}}}
+# {'a': {'b': {(): 1}, {'c' : {(), 1}}}}
 
 # Trie with single address.
 trie = MutableChoiceTrie()
 trie[addr('a')] = 1
 assert trie[addr('a')] == 1
 assert not trie.is_primitive()
-assert trie.is_primitive('a')
 with pytest.raises(IndexError):
     trie[addr()]
 assert trie.asdict() == {'a': {(): 1}}
+subtrie = trie.get_subtrie(addr('a'))
+assert subtrie.is_primitive()
+assert subtrie[addr()] == 1
 
 # Trie with tuples as the keys.
 for k in [('a',), (('a', 'b'),)]:
@@ -141,7 +185,8 @@ for k in [('a',), (('a', 'b'),)]:
     trie[addr(k)] = 10
     assert trie.asdict() == {k: {(): 10}}
     assert not trie.is_primitive()
-    assert trie.is_primitive(k)
+    subtrie = trie.get_subtrie(addr(k))
+    assert subtrie.is_primitive()
 
 trie = MutableChoiceTrie()
 # Create a primitive.
@@ -150,11 +195,23 @@ assert trie.asdict() == {'a': {(): 2}}
 # Create a compound.
 trie[addr('b', 'c')] = 3
 assert trie.asdict() == {'a': {(): 2}, 'b': {'c': {(): 3}}}
+subtrie = trie.get_subtrie(addr('b'))
+assert not subtrie.is_primitive()
+subtrie = trie.get_subtrie(addr('b', 'c'))
+assert subtrie.is_primitive()
 # Extend a compound.
 trie[addr('b', 'd')] = 14
 assert trie.asdict() == {'a': {(): 2}, 'b': {'c': {(): 3}, 'd': {(): 14}}}
-# Overwrite a primitive.
+with pytest.raises(IndexError):
+    trie.get_subtrie(addr('d'))
+subtrie = trie.get_subtrie(addr('b', 'd'))
+assert subtrie.is_primitive()
+assert subtrie[addr()] == 14
+# Overwrite a primitive with a compound.
 trie[addr('a', 'c')] = 5
+subtrie = trie.get_subtrie(addr('a'))
+assert not subtrie.is_primitive()
+assert subtrie[addr('c')] == 5
 # Confirm values.
 assert trie[addr('a', 'c')] == 5
 assert trie[addr('b', 'c')] == 3
@@ -163,20 +220,22 @@ assert trie[addr('b', 'd')] == 14
 trie[addr('b', 'c')] = 13
 assert trie[addr('b', 'c')] == 13
 
-
+# Write a dict as a value.
 trie = MutableChoiceTrie()
 trie[addr('b')] = {'a' : {(): 1.123}}
-assert trie.is_primitive('b')
+assert trie.get_subtrie(addr('b')).is_primitive()
 assert trie[addr('b')] == {'a' : {(): 1.123}}
 d1 = trie.asdict()
 assert d1 == {'b': {(): {'a' : {(): 1.123}}}}
 
+# Write a MutableChoiceTrie as a value.
 trie = MutableChoiceTrie()
 trie_value = MutableChoiceTrie()
 trie_value[addr('a')] = 1.123
 trie[addr('b')] = trie_value
-assert trie.is_primitive('b')
+assert trie.get_subtrie(addr('b')).is_primitive()
 assert trie[addr('b')] == trie_value
+assert trie.get_subtrie(addr('b'))[addr()] == trie_value
 d2 = trie.asdict()
 
 assert str(d1) == str(d2)
@@ -188,14 +247,11 @@ assert d1 != d2
 # trie = MutableChoiceTrie({'a': 1})
 # assert trie.flatten() == {addr('a'): 1}
 
-choices = {'a': 1.123, ('b', 'c'): 10, ('b', 'e', 1): 11}
 trie = MutableChoiceTrie()
 trie[addr('a')] = 1.123
 trie[addr('b', 'c')] = 10
 trie[addr('b', 'e', 1)] = 11
-
-assert trie.is_primitive('a')
-assert not trie.is_primitive('b')
+assert trie.get_subtrie(addr('b', 'e'))[addr(1)] == 11
 
 assert trie.asdict() == {
     'a':
@@ -214,7 +270,6 @@ with pytest.raises(Exception):
 
 x = MutableChoiceTrie()
 x[addr('a')] = MutableChoiceTrie()
-assert(x.is_primitive('a'))
 
 # TEST CASE FROM MARCO
 # y = x[addr("a")]
