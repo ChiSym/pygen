@@ -26,8 +26,8 @@ class ChoiceTrie:
         raise NotImplementedError()
 
     def flatten(self):
-        """Returns a `(address, choice)` iterator, where `address` is a
-        full path down the trie and `choice` is the value stored at `address`."""
+        """Returns an iterator over all `(address, choice)` pairs in the trie
+        that satisfy `get_choice(address) === choice`."""
         raise NotImplementedError()
 
     def __getitem__(self, address):
@@ -42,6 +42,8 @@ class ChoiceTrie:
         raise NotImplementedError()
 
     def __iter__(self):
+        """Returns an iterator over `(address, v)` pairs that
+        satisfy `subtrie[address] = v`."""
         raise NotImplementedError()
 
 class MutableChoiceTrie(ChoiceTrie):
@@ -179,7 +181,8 @@ class MutableChoiceTrie(ChoiceTrie):
         self.trie[key][rest] = value
 
     def __iter__(self):
-        return iter(self.trie.items())
+        for k, subtrie in self.trie.items():
+            yield (addr(k), subtrie)
 
     def __bool__(self):
         return bool(self.trie)
@@ -208,11 +211,11 @@ class MutableChoiceTrie(ChoiceTrie):
             return trie
         # Compound trie.
         trie = MutableChoiceTrie()
-        for k, subtrie in x:
+        for address, subtrie in x:
             if subtrie.is_primitive():
                 value = subtrie[addr()]
-                trie[addr(k)] = value # deepcopy the value?
+                trie[address] = value # deepcopy the value?
             else:
                 subtrie_recursive = MutableChoiceTrie.copy(subtrie)
-                trie.set_subtrie(addr(k), subtrie_recursive)
+                trie.set_subtrie(address, subtrie_recursive)
         return trie
