@@ -59,27 +59,6 @@ print(f"choices: {choices}, log_weight: {log_weight}")
 new_choices = new_trace.get_choices()
 print(f"new_choices: {new_choices}, log_weight: {log_weight}, discard: {discard}")
 
-# choice_gradients
-(arg_grads, choice_values, choice_grads) = trace.choice_gradients(set(["z", "img"]), torch.zeros((5,)))
-print(f"arg_grads: {arg_grads}, choice_values: {choice_values}, choice_grads: {choice_grads}")
-
-module = model.get_torch_nn_module()
-
-for param in module.parameters():
-    assert param.grad is None or torch.equal(param.grad, torch.zeros_like(param))
-
-# accumulate param gradients
-arg_grads = trace.accumulate_param_gradients(torch.zeros((5,)), 1.0)
-print(f"arg_grads: {arg_grads}")
-
-for param in module.parameters():
-    assert param.grad is not None and not torch.equal(param.grad, torch.zeros_like(param))
-
-module.zero_grad()
-
-for param in module.parameters():
-    assert param.grad is not None and torch.equal(param.grad, torch.zeros_like(param))
-
 n = 1000
 elapsed = timeit.timeit(lambda: trace.update((10,), {"z" : torch.zeros((10,))}), number=n)
 print(f"updates per second: {n/elapsed}")
