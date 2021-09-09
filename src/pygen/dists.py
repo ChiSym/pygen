@@ -28,7 +28,9 @@ class TorchDistTrace(Trace):
         return self.value
 
     def get_choice_trie(self):
-        return MutableChoiceTrie({addr(): self.value)
+        trie = MutableChoiceTrie()
+        trie[addr()] = self.value
+        return trie
 
     def update(self, args, choice_trie):
         assert isinstance(choice_trie, ChoiceTrie)
@@ -54,10 +56,10 @@ class TorchDistTrace(Trace):
     # NOTE: as an optimization, these methods currently use the 'logpdf' method
     # (see below) instead..
 
-    def accum_param_grads(self, retgrad, scale_factor):
+    def choice_gradients(self, selection, retgrad):
         raise NotImplementedError()
 
-    def choice_gradients(self, selection, retgrad):
+    def accum_param_grads(self, retgrad, scale_factor):
         raise NotImplementedError()
 
 
@@ -71,6 +73,7 @@ def torch_dist_to_gen_fn(dist_class):
         def get_dist_class(self):
             return self.dist_class
 
+        @staticmethod
         def _check_is_primitive_and_get_value(choice_trie):
             if not choice_trie.is_primitive():
                 raise RuntimError(f'choice_trie is not primitive: {choice_trie}')
