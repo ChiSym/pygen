@@ -66,3 +66,14 @@ assert x == ChoiceAddress(((),))
 assert x
 assert x.first() == ()
 assert x.rest() == addr()
+
+def addressify(x):
+    if isinstance(x, tuple):
+        return addr(*x)
+    return addr(x)
+
+assert addressify(('1', '2')) == addr('1', '2')
+assert addressify('1') == addr('1')
+assert addressify(('1',)) == addr('1')
+assert addressify(('1', ())) == addr('1', ())
+assert addressify(()) == addr()

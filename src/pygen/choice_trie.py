@@ -33,18 +33,9 @@ class ChoiceTrie:
 from pygen.choice_address import ChoiceAddress
 from pygen.choice_address import addr
 
-def addressify(x):
-    if isinstance(x, tuple):
-        return addr(*x)
-    return addr(x)
-
 class MutableChoiceTrie(ChoiceTrie):
-    def __init__(self, spec=None):
+    def __init__(self):
         self.trie = {}
-        if spec:
-            for k, v in spec.items():
-                address = addressify(k)
-                self[address] = v
 
     def is_primitive(self, key=None):
         if key is None:
@@ -125,13 +116,6 @@ class MutableChoiceTrie(ChoiceTrie):
 
 import pytest
 
-# Tests for addressify
-assert addressify(('1', '2')) == addr('1', '2')
-assert addressify('1') == addr('1')
-assert addressify(('1',)) == addr('1')
-assert addressify(('1', ())) == addr('1', ())
-assert addressify(()) == addr()
-
 # Primitive trie.
 trie = MutableChoiceTrie()
 trie[addr()] = 1
@@ -179,58 +163,24 @@ assert trie[addr('b', 'd')] == 14
 trie[addr('b', 'c')] = 13
 assert trie[addr('b', 'c')] == 13
 
-# Check initializations agree.
-t1 = MutableChoiceTrie({'a': 1})
-t2 = MutableChoiceTrie()
-t2[addr('a')] = 1
-assert t1 == t2
 
-# Check singleton tuple has no effect.
-t = MutableChoiceTrie({'a': 2})
-assert t == MutableChoiceTrie({('a',): 2})
-assert t[addr('a')] == 2
-assert t.asdict() == {'a': {(): 2}}
-assert not t.is_primitive()
-assert t.is_primitive('a')
-with pytest.raises(IndexError):
-    t[addr()]
-
-# Directly create a primitive trie.
-t = MutableChoiceTrie({(): 2})
-assert t[()] == 2
-assert t.is_primitive()
-assert t.asdict() == {(): 2}
-
-# Miscellaneous test.
-trie = MutableChoiceTrie({'a': 1, ('b', 'c') : 2})
-assert not trie.is_primitive()
-assert trie.is_primitive('a')
-assert trie[addr('a')] == 1
-assert trie[addr('b', 'c')] == 2
-b_trie = trie[addr('b')]
-assert not b_trie.is_primitive()
-assert b_trie.is_primitive('c')
-assert b_trie[addr('c')] == 2
-
-# Test ChoiceTrie as values
-trie = MutableChoiceTrie({('b', 'a'): 1.123})
-assert not trie.is_primitive('b')
-assert trie[addr('b')] == MutableChoiceTrie({'a': 1.123})
-assert trie.asdict() == {'b': {'a': {(): 1.123}}}
-
-trie = MutableChoiceTrie({'b': {'a' : {(): 1.123}}})
+trie = MutableChoiceTrie()
+trie[addr('b')] = {'a' : {(): 1.123}}
 assert trie.is_primitive('b')
 assert trie[addr('b')] == {'a' : {(): 1.123}}
 d1 = trie.asdict()
+assert d1 == {'b': {(): {'a' : {(): 1.123}}}}
 
-trie = MutableChoiceTrie({'b': MutableChoiceTrie({'a': 1.123})})
+trie = MutableChoiceTrie()
+trie_value = MutableChoiceTrie()
+trie_value[addr('a')] = 1.123
+trie[addr('b')] = trie_value
 assert trie.is_primitive('b')
-assert trie[addr('b')] == MutableChoiceTrie({'a': 1.123})
+assert trie[addr('b')] == trie_value
 d2 = trie.asdict()
 
 assert str(d1) == str(d2)
 assert d1 != d2
-
 
 # trie = MutableChoiceTrie({(): 1})
 # assert trie.flatten() == {addr(): 1}
@@ -239,7 +189,14 @@ assert d1 != d2
 # assert trie.flatten() == {addr('a'): 1}
 
 choices = {'a': 1.123, ('b', 'c'): 10, ('b', 'e', 1): 11}
-trie = MutableChoiceTrie(choices)
+trie = MutableChoiceTrie()
+trie[addr('a')] = 1.123
+trie[addr('b', 'c')] = 10
+trie[addr('b', 'e', 1)] = 11
+
+assert trie.is_primitive('a')
+assert not trie.is_primitive('b')
+
 assert trie.asdict() == {
     'a':
         {(): 1.123},
@@ -272,6 +229,13 @@ assert(x.is_primitive('a'))
 
 # set_subtries writes an subtrie
 # __setindex__ writes a value (possibly a subtrie)
+
+# New requirements
+# get_subtrie where the address is an arbitrary address, and where the result can be a primitive or non-primitive choice trie
+# is_primitive() -- zero-argument version
+# trie[addr()] -- getting the value from a primitive choice trie
+# set_subtrie(k, v) where k is a single element of an address and where v is a ChoiceTrie
+# That last point reminds me -- we need a copy constructor, where we construct a MutableChoiceTrie from a ChoiceTrie
 
 # TODO implement a copy constructor using this pattern, and test it
 # def my_walker(trie):
