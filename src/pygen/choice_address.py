@@ -17,7 +17,9 @@ class ChoiceAddress:
         return bool(self.keys)
 
     def __eq__(self, x):
-        return isinstance(x, type(self)) and self.keys == x.keys
+        if isinstance(x, type(self)):
+            return self.keys == x.keys
+        return False
 
     def __repr__(self):
         return 'ChoiceAddress(%s)' % (self.keys,)
@@ -29,9 +31,9 @@ class ChoiceAddress:
         return hash(self.keys)
 
     def __add__(self, x):
-        if not isinstance(x, type(self)):
-            return NotImplemented
-        return ChoiceAddress(self.keys + x.keys)
+        if isinstance(x, type(self)):
+            return ChoiceAddress(self.keys + x.keys)
+        return NotImplemented
 
 def addr(*args):
     return ChoiceAddress(args)

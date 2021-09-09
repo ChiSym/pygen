@@ -4,21 +4,22 @@ class ChoiceTrie:
         raise NotImplementedError()
 
     def is_primitive(self):
-        '''Return True if this trie has exactly one choice, stored under `addr()`.'''
+        """Return True if this trie has exactly one choice, stored under `addr()`."""
         raise NotImplementedError()
 
     def get_subtrie(self, address):
-        '''Return the trie under the given `address`.'''
+        """Return the trie under the given `address`."""
         raise NotImplementedError()
 
     def flatten(self):
-        # Returns a Python dictionary that has the same interface as a
-        # dictionary view, where keys are multi-part addresses
+        """Returns a `(address, choice)` iterator, where `address` is a
+        full path down the trie and `choice` is an choice value."""
         raise NotImplementedError()
 
     def __getitem__(self, address):
-        # Indexing into a choice map means either retrieving the subtrie
-        # (if the subtrie is not primitive) or the choice (if it is primitive)
+        """Indexing into a choice map means retrieving the subtrie stored
+         at `address` (if the subtrie is not primitive) or retrieving the
+         choice (if the subtrie is primitive, i.e., unboxing)."""
         raise NotImplementedError()
 
     def __iter__(self):
@@ -50,7 +51,7 @@ class MutableChoiceTrie(ChoiceTrie):
             return self.trie[key]
 
     def set_subtrie(self, address, subtrie):
-        '''Replace the entire subtrie at address with the given subtrie.'''
+        """Replace the entire subtrie at `address` with the given `subtrie`."""
         assert isinstance(subtrie, ChoiceTrie)
         if self.is_primitive():
             raise RuntimeError('Cannot set_subtrie of a primitive MutableChoiceTrie.')
@@ -146,10 +147,33 @@ class MutableChoiceTrie(ChoiceTrie):
         return str(self.asdict())
 
     def __repr__(self):
+        # TODO: Return a representation that makes it clear this object
+        # is a MutableChoiceTrie, not a dictionary! Once a constructor
+        # is designed it will be easier to standardize the representation.
+        # return 'MutableChoiceTrie(%s)' % (repr(self.trie),)
         return str(self)
 
     def __eq__(self, x):
-        return isinstance(x, type(self)) and self.trie == x.trie
+        if isinstance(x, type(self)):
+            return self.trie == x.trie
+        return False
+
+    @staticmethod
+    def copy(x):
+        if x.is_primitive():
+            trie = MutableChoiceTrie()
+            trie[addr()] = x[addr()]
+            return trie
+
+        trie = MutableChoiceTrie()
+        for k, subtrie in x:
+            if subtrie.is_primitive():
+                value = subtrie[addr()]
+                trie[addr(k)] = value # deepcopy the value?
+            else:
+                subtrie_recursive = MutableChoiceTrie.copy(subtrie)
+                trie.set_subtrie(addr(k), subtrie_recursive)
+        return trie
 
 import pytest
 
@@ -158,12 +182,14 @@ trie = MutableChoiceTrie()
 assert not trie.is_primitive()
 assert trie.flatten() == {}
 assert trie.asdict() == {}
+assert MutableChoiceTrie.copy(trie) == trie
 
 # Primitive trie.
 trie = MutableChoiceTrie()
 trie[addr()] = 1
 assert trie.is_primitive()
 assert trie.asdict() == {(): 1}
+assert MutableChoiceTrie.copy(trie) == trie
 
 # Cannot write to a primitive trie.
 with pytest.raises(RuntimeError):
@@ -177,10 +203,6 @@ assert trie.asdict() == {(): 2}
 # Cannot get subtrie of primitive trie.
 with pytest.raises(RuntimeError):
     trie.get_subtrie(addr())
-
-# {'a': {(): 2}}
-# {'a': {'b': {(): 2}}}
-# {'a': {'b': {(): 1}, {'c' : {(), 1}}}}
 
 # Trie with single address.
 trie = MutableChoiceTrie()
@@ -238,25 +260,26 @@ assert trie[addr('b', 'd')] == 14
 trie[addr('b', 'c')] = 13
 assert trie[addr('b', 'c')] == 13
 
-# Write a dict as a value.
+# Writing a dict versus ChoiceTrie as primitive choice.
+# = Write a dict.
+trie_value = {'a' : {(): 1.123}}
 trie = MutableChoiceTrie()
-trie[addr('b')] = {'a' : {(): 1.123}}
+trie[addr('b')] = trie_value
 assert trie.get_subtrie(addr('b')).is_primitive()
-assert trie[addr('b')] == {'a' : {(): 1.123}}
+assert trie[addr('b')] == trie_value
 d1 = trie.asdict()
-assert d1 == {'b': {(): {'a' : {(): 1.123}}}}
-
-# Write a MutableChoiceTrie as a value.
-trie = MutableChoiceTrie()
+assert d1 == {'b': {(): trie_value}}
+# = Write a MutableChoiceTrie.
 trie_value = MutableChoiceTrie()
 trie_value[addr('a')] = 1.123
+trie = MutableChoiceTrie()
 trie[addr('b')] = trie_value
 assert trie.get_subtrie(addr('b')).is_primitive()
 assert trie[addr('b')] == trie_value
 assert trie.get_subtrie(addr('b'))[addr()] == trie_value
 d2 = trie.asdict()
-
-assert str(d1) == str(d2)
+assert d2 == {'b': {(): trie_value}}
+# = Confirm they are not equal
 assert d1 != d2
 
 trie = MutableChoiceTrie()
@@ -278,17 +301,31 @@ assert trie.asdict() == {
         'e':
             {1: {(): 11}}}
     }
-# with pytest.raises(Exception):
 assert trie.flatten() == {
     addr('a'): 1.123,
     addr('b', 'c') : 10,
     addr('b', 'e', 1): 11
 }
+assert MutableChoiceTrie.copy(trie) == trie
 
-x = MutableChoiceTrie()
-x[addr('a')] = MutableChoiceTrie()
+# Setting a subtrie versus setting a primitive using index.
+# = setting a primitive that happens to be a choice trie
+trie = MutableChoiceTrie()
+trie[addr('a')] = MutableChoiceTrie()
+assert trie.asdict() == {'a': {(): MutableChoiceTrie()}}
+assert trie.flatten() == {addr('a'): MutableChoiceTrie()}
+# = setting a subtrie proper
+trie.set_subtrie(addr('a'), MutableChoiceTrie())
+assert trie.trie == {'a': MutableChoiceTrie()}
+assert trie.asdict() == {'a': {}}
+assert trie.flatten() == {}
 
-# set subtrie of a primitive
+# Flatten a non-empty subtrie with no choices.
+trie = MutableChoiceTrie()
+trie.set_subtrie(addr('a'), MutableChoiceTrie())
+assert trie.flatten() == {}
+
+# Fail to set subtrie of a primitive
 trie = MutableChoiceTrie()
 trie[addr()] = 1
 with pytest.raises(RuntimeError):
@@ -304,42 +341,12 @@ trie.set_subtrie(addr('a', 'b'), subtrie)
 assert trie.get_subtrie(addr('a', 'b')) == subtrie
 # XXX Warning: Cannot print(subtrie), infinite recursion.
 
+# XXX Warning: Cannot print(trie), infinite recursion.
 trie = MutableChoiceTrie()
 trie.set_subtrie(addr('a'), trie)
-# XXX Warning: Cannot print(trie), infinite recursion.
 
 trie = MutableChoiceTrie()
 trie.set_subtrie(addr('a'), MutableChoiceTrie())
 subtrie = trie.get_subtrie(addr('a'))
 subtrie[addr('b')] = 1.123
 assert trie[addr('a', 'b')] == 1.123
-
-# y = x[addr('a')]
-# y[addr('b')] = 1.123
-# print(x.asdict())
-# print(y.asdict())
-# print(x[addr('a', 'b')])
-# assert x[addr('a', 'b')] == 1.123
-
-# get_subtries does not unbox primitives
-# __getindex__ does unbox primitives
-
-# set_subtries writes an subtrie
-# __setindex__ writes a value (possibly a subtrie)
-
-# New requirements
-# get_subtrie where the address is an arbitrary address, and where the result can be a primitive or non-primitive choice trie
-# is_primitive() -- zero-argument version
-# trie[addr()] -- getting the value from a primitive choice trie
-# set_subtrie(k, v) where k is a single element of an address and where v is a ChoiceTrie
-# That last point reminds me -- we need a copy constructor, where we construct a MutableChoiceTrie from a ChoiceTrie
-
-# TODO implement a copy constructor using this pattern, and test it
-# def my_walker(trie):
-#     for (k, sub_trie_or_value) in trie:
-#         if trie.is_primitive(k):
-#             value = sub_trie_or_value
-#             # TODO do something with the value
-#         else:
-#             sub_trie = sub_trie_or_value
-#             # TODO do something with the sub_trie
