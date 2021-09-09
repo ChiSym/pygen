@@ -108,6 +108,7 @@ class MutableChoiceTrie(ChoiceTrie):
         return subtrie
 
     def __setitem__(self, address, value):
+        """Write `value` to the given `address`."""
         assert isinstance(address, ChoiceAddress)
         # Write to primitive trie.
         if self.is_primitive():
@@ -116,7 +117,6 @@ class MutableChoiceTrie(ChoiceTrie):
                 raise RuntimeError('Cannot add choices to a primitive trie.')
             # Overwrite the choice.
             self.trie[()] = value
-            return
         # Write to compound trie.
         elif not address:
             if self.trie:
