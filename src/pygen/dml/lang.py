@@ -209,12 +209,12 @@ class DMLTrace(Trace):
             else:
                 assert isinstance(v, dict)
                 if k in new_subtraces_trie:
-                    _add_unvisited_to_discard(discard.get_subtrie(), v, new_subtraces_trie[v])
+                    _add_unvisited_to_discard(discard.get_subtrie(k), v, new_subtraces_trie[v])
                 else:
                     d = MutableChoiceTrie()
                     _add_unvisited_to_discard(d, v, new_subtraces_trie[v])
                     discard.set_subtrie(k, d)
-    
+
     def update(self, args, constraints):
         new_trace = DMLTrace(self.get_gen_fn(), args)
         discard = MutableChoiceTrie()
@@ -245,8 +245,8 @@ class DMLTrace(Trace):
                 self._record_torch_nn_module(callee)
                 return callee(*args)
             else:
-                raise RuntimeError("Unknown type of generative function:"
-                    f" {callee}")
+                raise RuntimeError('Unknown type of generative function:'
+                    f' {callee}')
 
         p = _inject_variables({"gentrace" : gentrace}, self.get_gen_fn().p)
         with torch.inference_mode(mode=True):
@@ -262,110 +262,10 @@ class DMLTrace(Trace):
         raise NotImplementedError()
 
     def choice_gradients(self, selection, retval_grad):
-        with torch.inference_mode(mode=False):
-            score = torch.tensor(0.0, requires_grad=False)
-            choice_dict = {}
-
-            def gentrace(callee, args, addr=None):
-                nonlocal score
-                if isinstance(callee, DMLGenFn):
-                    # recursive calls to this 'gentrace'
-                    return splice_dml_call(callee, args, addr, gentrace)
-                elif isinstance(callee, GenDist):
-                    if addr is None:
-                        raise RuntimeError("Address must be provided for non-DML call")
-                    value = self.choices[addr]
-                    assert not value.requires_grad
-                    if addr in selection:
-                        leaf_value = value.detach().clone().requires_grad_(True)
-                        choice_dict[addr] = leaf_value
-                        score += callee.logpdf(args, leaf_value)
-                        return leaf_value
-                    else:
-                        score += callee.logpdf(args, value)
-                        return value
-                elif isinstance(callee, torch.nn.Module):
-                    for param in callee.parameters():
-                        param.requires_grad_(False)
-                    return callee(*args)
-                else:
-                    raise RuntimeError(f"Unknown type of generative function: {callee}")
-
-            p = _inject_variables({"gentrace" : gentrace}, self.gen_fn.p)
-            args_tracked = tuple(
-                arg.detach().clone().requires_grad_(True) if isinstance(arg, torch.Tensor) else arg
-                for arg in self.get_args())
-            retval = p(*args_tracked)
-            req = retval.requires_grad
-            grad_fn = retval.grad_fn
-
-            if retval.requires_grad:
-                retval.backward(gradient=retval_grad, retain_graph=False)
-            score.backward(retain_graph=True)
-
-            arg_grads = tuple(
-                arg.grad if isinstance(arg, torch.Tensor) else None
-                for arg in args_tracked)
-
-            grad_dict = {}
-            for (addr, leaf_value) in choice_dict.items():
-                grad_dict[addr] = leaf_value.grad.detach()
-                leaf_value.requires_grad_(False)
-
-        return (arg_grads, choice_dict, grad_dict)
+        raise NotImplementedError()
 
     def accumulate_param_gradients(self, retgrad, scale_factor):
-        with torch.inference_mode(mode=False):
-            score = torch.tensor(0.0, requires_grad=False)
-            choice_dict = {}
-
-            def gentrace(callee, args, addr=None):
-                nonlocal score
-                if isinstance(callee, DMLGenFn):
-                    # recursive calls to this 'gentrace'
-                    return splice_dml_call(callee, args, addr, gentrace)
-                elif isinstance(callee, GenDist):
-                    if addr is None:
-                        raise RuntimeError("Address must be provided for non-DML call")
-                    value = self.choices[addr].detach().clone().requires_grad_(False)
-                    assert not value.requires_grad
-                    score += callee.logpdf(args, value)
-                    return value
-                elif isinstance(callee, torch.nn.Module):
-                    for param in callee.parameters():
-                        param.requires_grad_(True)
-                    return callee(*args)
-                else:
-                    raise RuntimeError(f"Unknown type of generative function: {callee}")
-
-            p = _inject_variables({"gentrace" : gentrace}, self.gen_fn.p)
-            args_tracked = tuple(
-                arg.detach().requires_grad_(True) if isinstance(arg, torch.Tensor) else arg
-                for arg in self.get_args())
-            retval = p(*args_tracked)
-            req = retval.requires_grad
-            grad_fn = retval.grad_fn
-
-            # multiply the existing gradient by 1/scale_factor
-            for param in self.get_gen_fn().get_torch_nn_module().parameters():
-                if param.grad is not None:
-                    param.grad.mul_(1.0 / scale_factor)
-
-            # then accumulate gradient with scale factor of 1
-            if retval.requires_grad:
-                retval.backward(gradient=retval_grad, retain_graph=False)
-            score.backward(retain_graph=True)
-
-            # then multiply the total gradient by scale_factor
-            for param in self.get_gen_fn().get_torch_nn_module().parameters():
-                param.grad.mul_(scale_factor)
-
-            arg_grads = tuple(
-                arg.grad if isinstance(arg, torch.Tensor) else None
-                for arg in args_tracked)
-
-        return arg_grads
-
+        raise NotImplementedError()
 
 def gendml(p):
     return DMLGenFn(p)
