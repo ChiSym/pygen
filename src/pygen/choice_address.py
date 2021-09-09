@@ -2,7 +2,6 @@ class ChoiceAddress:
 
     def __init__(self, keys):
         self.keys = tuple(keys)
-        self.hashx = hash(self.keys)
 
     def first(self):
         if not self:
@@ -18,7 +17,7 @@ class ChoiceAddress:
         return bool(self.keys)
 
     def __eq__(self, x):
-        return self.keys == x.keys
+        return isinstance(x, type(self)) and self.keys == x.keys
 
     def __repr__(self):
         return 'ChoiceAddress(%s)' % (self.keys,)
@@ -27,7 +26,12 @@ class ChoiceAddress:
         return str(self.keys)
 
     def __hash__(self):
-        return self.hashx
+        return hash(self.keys)
+
+    def __add__(self, x):
+        if not isinstance(x, type(self)):
+            return NotImplemented
+        return ChoiceAddress(self.keys + x.keys)
 
 
 def addr(*args):
