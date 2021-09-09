@@ -141,9 +141,7 @@ class MutableChoiceTrie(ChoiceTrie):
         assert isinstance(address, ChoiceAddress)
         # Primitive trie.
         if self.is_primitive():
-            if address:
-                raise RuntimeError(f'No subtrie or choice under address: {address}')
-            return self.trie[()]
+            return self.get_choice(address)
         # Compound trie.
         subtrie = self.get_subtrie(address)
         # Primitive subtrie: unbox
