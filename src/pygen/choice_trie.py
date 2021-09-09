@@ -2,6 +2,12 @@ from .choice_address import ChoiceAddress
 from .choice_address import addr
 
 class ChoiceTrie:
+    """Implements a Trie (prefix tree) data structure.
+    https://en.wikipedia.org/wiki/Trie
+
+    The keys in the trie tree are instances of ChoiceAddress.
+    The leaves (choices) in the trie are arbitrary Python values.
+    """
 
     def __init__(self):
         raise NotImplementedError()
@@ -25,9 +31,14 @@ class ChoiceTrie:
         raise NotImplementedError()
 
     def __getitem__(self, address):
-        """Indexing into a choice map means retrieving the subtrie stored
-         at `address` if the subtrie is not primitive, or retrieving the
-         choice (if the subtrie is primitive, i.e., unboxing)."""
+        """Indexing into a ChoiceTrie returns either a ChoiceTrie or a choice.
+
+        1. If the ChoiceTrie is primitive, equivalent to `get_choice(address)`.
+
+        2. If the ChoiceTrie is non primitive, returns `get_choice(address)`
+        if there exists a choice under `address` and returns `get_submap(address)`
+        otherwise.
+        """
         raise NotImplementedError()
 
     def __iter__(self):
