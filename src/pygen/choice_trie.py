@@ -27,7 +27,7 @@ class ChoiceTrie:
 
     def flatten(self):
         """Returns a `(address, choice)` iterator, where `address` is a
-        full path down the trie and `choice` is an choice value."""
+        full path down the trie and `choice` is the value stored at `address`."""
         raise NotImplementedError()
 
     def __getitem__(self, address):
