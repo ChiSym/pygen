@@ -172,10 +172,10 @@ class DMLTrace(Trace):
         trie = MutableChoiceTrie()
         for (k, v) in subtraces_trie.items():
             if isinstance(v, Trace):
-                trie.set_subtrie(k, v.get_choice_trie())
+                trie.set_subtrie(addr(k), v.get_choice_trie())
             else:
                 assert isinstance(v, dict)
-                trie.set_subtrie(k, DMLTrace._to_choice_trie(v))
+                trie.set_subtrie(addr(k), DMLTrace._to_choice_trie(v))
 
     def get_choice_trie(self):
         if self.empty_address_subtrace is not None:
@@ -205,7 +205,7 @@ class DMLTrace(Trace):
         for (k, v) in prev_subtraces_trie.items():
             if isinstance(v, Trace):
                 if k not in new_subtraces_trie:
-                    discard.set_subtrie(k, v.get_choice_trie())
+                    discard.set_subtrie(addr(k), v.get_choice_trie())
             else:
                 assert isinstance(v, dict)
                 if k in new_subtraces_trie:
@@ -213,7 +213,7 @@ class DMLTrace(Trace):
                 else:
                     d = MutableChoiceTrie()
                     _add_unvisited_to_discard(d, v, new_subtraces_trie[v])
-                    discard.set_subtrie(k, d)
+                    discard.set_subtrie(addr(k), d)
 
     def update(self, args, constraints):
         new_trace = DMLTrace(self.get_gen_fn(), args)
