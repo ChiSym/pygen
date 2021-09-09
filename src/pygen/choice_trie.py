@@ -83,12 +83,9 @@ class MutableChoiceTrie(ChoiceTrie):
             return {addr(): self.trie[()]}
         d = {}
         for k, subtrie in self.trie.items():
-            if subtrie.is_primitive():
-                d.update({addr(k): subtrie[addr()]})
-            else:
-                subtrie_flat = subtrie.flatten()
-                d_sub_prefix = {addr(k) + t: v for t, v in subtrie_flat.items()}
-                d.update(d_sub_prefix)
+            subtrie_flat = subtrie.flatten()
+            d_sub_prefix = {addr(k) + t: v for t, v in subtrie_flat.items()}
+            d.update(d_sub_prefix)
         return d
 
     def asdict(self):
