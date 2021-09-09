@@ -1,6 +1,7 @@
 import pytest
 
 from pygen.choice_address import addr
+from pygen.choice_trie import ChoiceTrie
 from pygen.choice_trie import MutableChoiceTrie
 
 def test_trie_empty():
@@ -11,11 +12,18 @@ def test_trie_empty():
     assert trie.asdict() == {}
     assert MutableChoiceTrie.copy(trie) == trie
     assert MutableChoiceTrie.copy(trie) is not trie
+    for address in [addr(), addr('a')]:
+        with pytest.raises(RuntimeError):
+            trie.get_subtrie(addr('a'))
+        with pytest.raises(RuntimeError):
+            trie.get_choice(addr('a'))
 
 def test_trie_primitive():
     # Primitive trie.
     trie = MutableChoiceTrie()
     trie[addr()] = 1
+    assert trie[addr()] == 1
+    assert trie.get_choice(addr()) == 1
     assert trie.is_primitive()
     assert trie.asdict() == {(): 1}
     # Flattening gives a single entry.
@@ -28,7 +36,7 @@ def test_trie_primitive():
         trie[addr('a')] = 1
     # Can overwrite primitive trie.
     trie[addr()] = 2
-    assert trie[addr()] == 2
+    assert trie[addr()] == trie.get_choice(addr()) == 2
     assert trie.asdict() == {(): 2}
     # Cannot get subtrie of primitive.
     with pytest.raises(RuntimeError):
@@ -41,14 +49,17 @@ def test_trie_single_address():
     # Trie with single address.
     trie = MutableChoiceTrie()
     trie[addr('a')] = 1
-    assert trie[addr('a')] == 1
+    assert trie[addr('a')] == trie.get_choice(addr('a')) == 1
     assert not trie.is_primitive()
-    with pytest.raises(RuntimeError):
-        trie[addr()]
+    for address in [addr(), addr('b')]:
+        with pytest.raises(RuntimeError):
+            trie[addr()]
+        with pytest.raises(RuntimeError):
+            trie.get_choice(addr())
     assert trie.asdict() == {'a': {(): 1}}
     subtrie = trie.get_subtrie(addr('a'))
     assert subtrie.is_primitive()
-    assert subtrie[addr()] == 1
+    assert subtrie[addr()] == subtrie.get_choice(addr()) == 1
 
 def test_trie_set_get_empty_address():
     trie = MutableChoiceTrie()
@@ -63,6 +74,7 @@ def test_trie_tuples_as_keys():
     for k in [('a',), (('a', 'b'),)]:
         trie = MutableChoiceTrie()
         trie[addr(k)] = 10
+        assert trie[addr(k)] == trie.get_choice(addr(k)) == 10
         assert trie.asdict() == {k: {(): 10}}
         assert not trie.is_primitive()
         subtrie = trie.get_subtrie(addr(k))
@@ -91,6 +103,10 @@ def test_trie_interactive_session_1():
     trie[addr('b', 'c')] = 3
     assert trie.asdict() == {'a': {(): 2}, 'b': {'c': {(): 3}}}
     subtrie = trie.get_subtrie(addr('b'))
+    # Test difference between get_choice and __getitem__
+    with pytest.raises(RuntimeError):
+        trie.get_choice(addr('b'))
+    assert isinstance(trie[addr('b')], ChoiceTrie)
     assert not subtrie.is_primitive()
     subtrie = trie.get_subtrie(addr('b', 'c'))
     assert subtrie.is_primitive()
@@ -107,7 +123,10 @@ def test_trie_interactive_session_1():
     assert subtrie[addr()] == 14
     # Overwrite a primitive with a compound.
     trie[addr('a', 'c')] = 5
+    with pytest.raises(RuntimeError):
+        subtrie.get_choice(addr('a'))
     subtrie = trie.get_subtrie(addr('a'))
+    assert subtrie == trie[addr('a')]
     assert not subtrie.is_primitive()
     assert subtrie == trie[addr('a')]
     assert subtrie[addr('c')] == 5
@@ -124,9 +143,10 @@ def test_trie_primitive_ChoiceTrie_vs_primitive_dict():
     # = Write a dict.
     trie_value = {'a' : {(): 1.123}}
     trie = MutableChoiceTrie()
-    trie[addr('b')] = trie_value
+    trie[addr('b')] =  trie_value
     assert trie.get_subtrie(addr('b')).is_primitive()
     assert trie[addr('b')] == trie_value
+    assert trie.get_choice(addr('b')) == trie_value
     d1 = trie.asdict()
     assert d1 == {'b': {(): trie_value}}
     # = Write a MutableChoiceTrie.
@@ -136,6 +156,7 @@ def test_trie_primitive_ChoiceTrie_vs_primitive_dict():
     trie[addr('b')] = trie_value
     assert trie.get_subtrie(addr('b')).is_primitive()
     assert trie[addr('b')] == trie_value
+    assert trie.get_choice(addr('b')) == trie_value
     assert trie.get_subtrie(addr('b'))[addr()] == trie_value
     d2 = trie.asdict()
     assert d2 == {'b': {(): trie_value}}

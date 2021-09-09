@@ -7,11 +7,16 @@ class ChoiceTrie:
         raise NotImplementedError()
 
     def is_primitive(self):
-        """Return True if this trie has exactly one choice, stored under `addr()`."""
+        """Return True if and only if this trie has exactly one choice,
+        stored under the empty address `addr()`."""
         raise NotImplementedError()
 
     def get_subtrie(self, address):
         """Return the trie under the given `address`."""
+        raise NotImplementedError()
+
+    def get_choice(self, address):
+        """Return the choice under the given `address`."""
         raise NotImplementedError()
 
     def flatten(self):
@@ -21,7 +26,7 @@ class ChoiceTrie:
 
     def __getitem__(self, address):
         """Indexing into a choice map means retrieving the subtrie stored
-         at `address` (if the subtrie is not primitive) or retrieving the
+         at `address` if the subtrie is not primitive, or retrieving the
          choice (if the subtrie is primitive, i.e., unboxing)."""
         raise NotImplementedError()
 
@@ -33,47 +38,64 @@ class MutableChoiceTrie(ChoiceTrie):
         self.trie = {}
 
     def is_primitive(self):
-        if () in self.trie:
-            assert len(self.trie) == 1
-            return True
-        return False
+        b = () in self.trie
+        assert not b or len(self.trie) == 1
+        return b
+
+    def get_choice(self, address):
+        assert isinstance(address, ChoiceAddress)
+        # Primitive trie.
+        if self.is_primitive():
+            if address:
+                raise RuntimeError(f'No choice under address {address}')
+            return self.trie[()]
+        # Compound trie.
+        if not address:
+            raise RuntimeError(f'No choice under address: {address}')
+        key = address.first()
+        if key not in self.trie:
+            raise RuntimeError(f'No choice under address: {address}')
+        rest = address.rest()
+        return self.trie[key].get_choice(rest)
 
     def get_subtrie(self, address):
         assert isinstance(address, ChoiceAddress)
+        # Primitive trie.
         if self.is_primitive():
             raise RuntimeError('Cannot get_subtrie of primitive MutableChoiceTrie.')
-
+        # Compound trie.
         if not address:
             raise RuntimeError('Cannot get_subtrie at empty address.')
         key = address.first()
         if key not in self.trie:
-            raise RuntimeError(f'No such address in trie: {address}')
+            raise RuntimeError(f'No subtrie under address: {address}')
         rest = address.rest()
-        if rest:
-            return self.trie[key].get_subtrie(rest)
-        else:
+        if not rest:
             return self.trie[key]
+        return self.trie[key].get_subtrie(rest)
 
     def set_subtrie(self, address, subtrie):
         """Replace the entire subtrie at `address` with the given `subtrie`."""
         assert isinstance(subtrie, ChoiceTrie)
+        # Primitive trie.
         if self.is_primitive():
             raise RuntimeError('Cannot set_subtrie of primitive MutableChoiceTrie.')
-
+        # Compound trie.
         if not address:
             raise RuntimeError('Cannot set_subtrie at empty address.')
         key = address.first()
         rest = address.rest()
         if not rest:
             self.trie[key] = subtrie
-        else:
-            if key not in self.trie:
-                self.trie[key] = MutableChoiceTrie()
-            # Overwrite primitive subtrie with a compound.
-            if self.trie[key].is_primitive():
-                self.trie[key] = MutableChoiceTrie()
-            # Recurse.
-            self.trie[key].set_subtrie(rest, subtrie)
+            return None
+        if key not in self.trie:
+            self.trie[key] = MutableChoiceTrie()
+        # Cannot recursively call set_subtrie on a primitive, so overwrite
+        # the primitive with an empty trie.
+        if self.trie[key].is_primitive():
+            self.trie[key] = MutableChoiceTrie()
+        # Recurse.
+        self.trie[key].set_subtrie(rest, subtrie)
 
     def get_shallow_choices(self):
         for k, subtrie in self.trie.items():
@@ -86,8 +108,10 @@ class MutableChoiceTrie(ChoiceTrie):
                 yield (k, subtrie)
 
     def flatten(self):
+        # Primitive trie.
         if self.is_primitive():
             return {addr(): self.trie[()]}
+        # Compound trie.
         d = {}
         for k, subtrie in self.trie.items():
             subtrie_flat = subtrie.flatten()
@@ -96,8 +120,10 @@ class MutableChoiceTrie(ChoiceTrie):
         return d
 
     def asdict(self):
+        # Primitive trie.
         if self.is_primitive():
             return dict(self.trie)
+        # Compound trie.
         return {k: v.asdict() for k, v in self.trie.items()}
 
     def __getitem__(self, address):
@@ -105,8 +131,9 @@ class MutableChoiceTrie(ChoiceTrie):
         # Primitive trie.
         if self.is_primitive():
             if address:
-                raise RuntimeError('No such address: %s' % (address,))
+                raise RuntimeError(f'No subtrie or choice under address: {address}')
             return self.trie[()]
+        # Compound trie.
         subtrie = self.get_subtrie(address)
         # Primitive subtrie: unbox
         if subtrie.is_primitive():
@@ -117,29 +144,30 @@ class MutableChoiceTrie(ChoiceTrie):
     def __setitem__(self, address, value):
         """Write `value` to the given `address`."""
         assert isinstance(address, ChoiceAddress)
-        # Write to primitive trie.
+        # Primitive trie.
         if self.is_primitive():
             # Cannot add new choices.
             if address:
-                raise RuntimeError('Cannot add choices to a primitive trie.')
+                raise RuntimeError('Cannot add choices to a primitive MutableChoiceTrie.')
             # Overwrite the choice.
             self.trie[()] = value
-        # Write to compound trie.
-        elif not address:
+            return None
+        # Compound trie.
+        if not address:
             if self.trie:
-                raise RuntimeError('Cannot add primitive choice to nonempty trie.')
+                raise RuntimeError('Cannot add choices to nonempty MutableChoiceTrie.')
             self.trie[()] = value
-        else:
-            key = address.first()
-            # Create a subtrie.
-            if key not in self.trie:
-                self.trie[key] = MutableChoiceTrie()
-            # Overwrite primitive subtrie.
-            if self.trie[key].is_primitive():
-                self.trie[key] = MutableChoiceTrie()
-            # Set the subtrie.
-            rest = address.rest()
-            self.trie[key][rest] = value
+            return None
+        key = address.first()
+        # Create a subtrie.
+        if key not in self.trie:
+            self.trie[key] = MutableChoiceTrie()
+        # Overwrite primitive subtrie.
+        if self.trie[key].is_primitive():
+            self.trie[key] = MutableChoiceTrie()
+        # Set the subtrie.
+        rest = address.rest()
+        self.trie[key][rest] = value
 
     def __iter__(self):
         return iter(self.trie.items())
@@ -164,11 +192,12 @@ class MutableChoiceTrie(ChoiceTrie):
 
     @staticmethod
     def copy(x):
+        # Primitive trie.
         if x.is_primitive():
             trie = MutableChoiceTrie()
             trie[addr()] = x[addr()]
             return trie
-
+        # Compound trie.
         trie = MutableChoiceTrie()
         for k, subtrie in x:
             if subtrie.is_primitive():
