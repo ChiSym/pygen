@@ -53,9 +53,6 @@ class TorchDistTrace(Trace):
     def regenerate(self, args, selection):
         raise NotImplementedError()
 
-    # NOTE: as an optimization, these methods currently use the 'logpdf' method
-    # (see below) instead..
-
     def choice_gradients(self, selection, retgrad):
         raise NotImplementedError()
 
@@ -90,11 +87,6 @@ def torch_dist_to_gen_fn(dist_class):
             dist = dist_class(*args)
             lpdf = dist.log_prob(value).sum()
             return (TorchDistTrace(self, value, lpdf), lpdf)
-
-        # TODO this is an optimization; we would normally have to call choice_gradients or accum_param_grads
-        def logpdf(self, args, value):
-            dist = dist_class(*args)
-            return dist.log_prob(value).sum()
 
     return gen_fn_class()
 
