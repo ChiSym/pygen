@@ -119,6 +119,7 @@ class DMLTrace(Trace):
         self.empty_address_subtrace = None
         self.subtraces_trie = {}
 
+    @staticmethod
     def _record_subtrace_in_subtraces_trie(subtraces_trie, addr, subtrace, full_addr):
         assert isinstance(addr, ChoiceAddress) and addr
         first = addr.first()
@@ -164,6 +165,7 @@ class DMLTrace(Trace):
     def get_retval(self):
         return self.retval
 
+    @staticmethod
     def _to_choice_trie(subtraces_trie):
         # subtraces_trie is a trie where leafs are Traces
         assert isinstance(subtraces_trie, dict)
@@ -183,6 +185,7 @@ class DMLTrace(Trace):
         else:
             DMLTrace._to_choice_trie(self.subtraces_trie)
 
+    @staticmethod
     def _deleted_subtraces_score(prev_subtraces_trie, new_subtraces_trie):
         score = torch.tensor(0.0, requires_grad=False)
         for (k, v) in prev_subtraces_trie.items():
@@ -197,6 +200,7 @@ class DMLTrace(Trace):
                     score += _deleted_subtraces_score(v, {})
         return score
 
+    @staticmethod
     def _add_unvisited_to_discard(discard, prev_subtraces_trie, new_subtraces_trie):
         for (k, v) in prev_subtraces_trie.items():
             if isinstance(v, Trace):
