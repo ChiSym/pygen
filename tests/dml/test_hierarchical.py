@@ -22,13 +22,13 @@ def count_calls(trie):
     else:
         left_trie = trie.get_subtrie(addr('left'))
         right_trie = trie.get_subtrie(addr('right'))
-        return 1 + count_dones(left_trie) + count_dones(right_trie)
+        return 1 + count_calls(left_trie) + count_calls(right_trie)
 
 def test_simulate():
     prob = 0.3
     trace = f.simulate((prob,))
     trie = trace.get_choice_trie()
-    num_dones = count_dones(trie)
+    num_dones = count_calls(trie)
     assert num_dones == trace.get_retval()
 
 def get_initial_choice_trie():
