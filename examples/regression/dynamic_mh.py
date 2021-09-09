@@ -1,10 +1,43 @@
-import torch
+import numpy
 
-from pygen.dists import bernoulli
-from pygen.dists import normal
+# from pygen.dists import bernoulli
+# from pygen.dists import normal
 from pygen.dml.lang import gendml
 from pygen.dml.lang import gentrace
 from pygen.inflib.mcmc import mh_custom_proposal
+
+from pygen.dists import GenDistTrace
+from pygen.dists import GenDist
+import scipy.stats
+
+def scipy_dist_to_gen_fn_continuous(dist_class):
+    class gen_fn_class(GenDist):
+        def simulate(self, args):
+            value = dist_class.rvs(*args)
+            lpdf = dist_class.logpdf(value, *args)
+            return GenDistTrace(value, lpdf)
+        def generate(self, args, value):
+            lpdf = dist_class.logpdf(value, *args)
+            return (GenDistTrace(value, lpdf), lpdf)
+        def logpdf(self, args, value):
+            return dist_class.logpdf(value, *args)
+    return gen_fn_class()
+
+def scipy_dist_to_gen_fn_discrete(dist_class):
+    class gen_fn_class(GenDist):
+        def simulate(self, args):
+            value = dist_class.rvs(*args)
+            lpdf = dist_class.logpmf(value, *args)
+            return GenDistTrace(value, lpdf)
+        def generate(self, args, value):
+            lpdf = dist_class.logpmf(value, *args)
+            return (GenDistTrace(value, lpdf), lpdf)
+        def logpdf(self, args, value):
+            return dist_class.logpmf(value, *args)
+    return gen_fn_class()
+
+normal = scipy_dist_to_gen_fn_continuous(scipy.stats.norm)
+bernoulli = scipy_dist_to_gen_fn_discrete(scipy.stats.bernoulli)
 
 from dataset import make_data_set
 
@@ -20,11 +53,11 @@ def datum(x, i, inlier_std, outlier_std, slope, intercept):
 def model(xs):
     log_inlier_std = gentrace(normal, (0, 2), 'log_inlier_std')
     log_outlier_std = gentrace(normal, (0, 2), 'log_outlier_std')
-    inlier_std = torch.exp(log_inlier_std)
-    outlier_std = torch.exp(log_outlier_std)
+    inlier_std = numpy.exp(log_inlier_std)
+    outlier_std = numpy.exp(log_outlier_std)
     slope = gentrace(normal, (0, 2), 'slope')
     intercept = gentrace(normal, (0, 2), 'intercept')
-    ys = torch.zeros(len(xs))
+    ys = numpy.zeros(len(xs))
     for i, x in enumerate(xs):
         # TODO: No hierarchical addressing for subcall.
         ys[i] = gentrace(datum, (x, i, inlier_std, outlier_std, slope, intercept), None)
@@ -47,8 +80,8 @@ def get_status(trace):
         ('score',        '%1.2f' % (trace.get_score()),),
         ('slope',        '%1.2f' % (choices['slope']),),
         ('intercept',    '%1.2f' % (choices['intercept']),),
-        ('inlier_std',   '%1.2f' % (torch.exp(choices['log_inlier_std'])),),
-        ('outlier_std',  '%1.2f' % (torch.exp(choices['log_outlier_std'])),),
+        ('inlier_std',   '%1.2f' % (numpy.exp(choices['log_inlier_std'])),),
+        ('outlier_std',  '%1.2f' % (numpy.exp(choices['log_outlier_std'])),),
     ]
     return ', '.join(': '.join(t) for t in tokens)
 

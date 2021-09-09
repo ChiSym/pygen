@@ -58,7 +58,7 @@ class DMLGenFn(GenFn):
                 self._record_torch_nn_module(callee)
                 return callee(*args)
             else:
-                raise RuntimeError("Unknown type of generative function: {callee}")
+                raise RuntimeError(f"Unknown type of generative function: {callee}")
 
         p = _inject_variables({"gentrace" : gentrace}, self.p)
         with torch.inference_mode(mode=True):
@@ -88,7 +88,8 @@ class DMLGenFn(GenFn):
                 self._record_torch_nn_module(callee)
                 return callee(*args)
             else:
-                raise RuntimeError("Unknown type of generative function: {callee}")
+                import ipdb; ipdb.set_trace()
+                raise RuntimeError(f"Unknown type of generative function: {callee}")
 
         p = _inject_variables({"gentrace" : gentrace}, self.p)
         with torch.inference_mode(mode=True):
@@ -110,7 +111,7 @@ class DMLTrace(Trace):
         if addr in self.choices:
             raise RuntimeError(f'address {addr} is already visited')
         value = subtrace.get_retval()
-        assert not value.requires_grad
+        # assert not value.requires_grad
         self.choices[addr] = value
         score_increment = subtrace.get_score()
         self.choice_scores[addr] = score_increment
