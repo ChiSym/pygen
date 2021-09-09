@@ -5,12 +5,12 @@ class ChoiceAddress:
 
     def first(self):
         if not self:
-            raise IndexError
+            raise RuntimeError('Empty ChoiceAddress has no first() element.')
         return self.keys[0]
 
     def rest(self):
         if not self:
-            raise IndexError
+            raise RuntimeError('Empty ChoiceAddress has no rest() address.')
         return ChoiceAddress(self.keys[1:])
 
     def __bool__(self):

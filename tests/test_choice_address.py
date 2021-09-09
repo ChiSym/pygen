@@ -8,9 +8,9 @@ def test_address_empty():
     assert x == ChoiceAddress(())
     assert x == addr()
     assert not x
-    with pytest.raises(IndexError):
+    with pytest.raises(RuntimeError):
         x.first()
-    with pytest.raises(IndexError):
+    with pytest.raises(RuntimeError):
         x.rest()
 
 def test_address_singleton_empty_tuple():
