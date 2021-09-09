@@ -39,11 +39,15 @@ class MutableChoiceTrie(ChoiceTrie):
         return False
 
     def get_subtrie(self, address):
+        assert isinstance(address, ChoiceAddress)
         if self.is_primitive():
             raise RuntimeError('Cannot get_subtrie of primitive MutableChoiceTrie.')
+
+        if not address:
+            raise RuntimeError('Cannot get_subtrie at empty address.')
         key = address.first()
         if key not in self.trie:
-            raise IndexError('No such address: %s' % (address,))
+            raise RuntimeError(f'No such address in trie: {address}')
         rest = address.rest()
         if rest:
             return self.trie[key].get_subtrie(rest)
@@ -54,7 +58,10 @@ class MutableChoiceTrie(ChoiceTrie):
         """Replace the entire subtrie at `address` with the given `subtrie`."""
         assert isinstance(subtrie, ChoiceTrie)
         if self.is_primitive():
-            raise RuntimeError('Cannot set_subtrie of a primitive MutableChoiceTrie.')
+            raise RuntimeError('Cannot set_subtrie of primitive MutableChoiceTrie.')
+
+        if not address:
+            raise RuntimeError('Cannot set_subtrie at empty address.')
         key = address.first()
         rest = address.rest()
         if not rest:
@@ -98,7 +105,7 @@ class MutableChoiceTrie(ChoiceTrie):
         # Primitive trie.
         if self.is_primitive():
             if address:
-                raise IndexError('No such address: %s' % (address,))
+                raise RuntimeError('No such address: %s' % (address,))
             return self.trie[()]
         subtrie = self.get_subtrie(address)
         # Primitive subtrie: unbox

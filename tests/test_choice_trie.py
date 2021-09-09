@@ -43,12 +43,20 @@ def test_trie_single_address():
     trie[addr('a')] = 1
     assert trie[addr('a')] == 1
     assert not trie.is_primitive()
-    with pytest.raises(IndexError):
+    with pytest.raises(RuntimeError):
         trie[addr()]
     assert trie.asdict() == {'a': {(): 1}}
     subtrie = trie.get_subtrie(addr('a'))
     assert subtrie.is_primitive()
     assert subtrie[addr()] == 1
+
+def test_trie_set_get_empty_address():
+    trie = MutableChoiceTrie()
+    trie[addr('a')] = 1
+    with pytest.raises(RuntimeError):
+        trie.get_subtrie(addr())
+    with pytest.raises(RuntimeError):
+        trie.set_subtrie(addr(), MutableChoiceTrie())
 
 def test_trie_tuples_as_keys():
     # Trie with tuples as the keys.
@@ -92,7 +100,7 @@ def test_trie_interactive_session_1():
     assert trie.asdict() == {'a': {(): 2}, 'b': {'c': {(): 3}, 'd': {(): 14}}}
     assert trie[addr('b')] == trie.get_subtrie(addr('b'))
     assert trie[addr('b')].asdict() == {'c': {(): 3}, 'd': {(): 14}}
-    with pytest.raises(IndexError):
+    with pytest.raises(RuntimeError):
         trie.get_subtrie(addr('d'))
     subtrie = trie.get_subtrie(addr('b', 'd'))
     assert subtrie.is_primitive()
