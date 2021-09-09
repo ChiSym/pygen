@@ -1,3 +1,40 @@
+# Notes
+
+Milestone 0 (done, on `main` branch)
+
+Milestone 1 (in progress)
+
+- choice tries are implemented and tested
+
+- simulate, generate, and update are implemented and tested, including for these 'non-spliced' generative functions
+
+- there is some example of an 'external' (non-DML) generative function that gets invoked (perhaps Feras' multivariate-normal generative function)
+
+- choice_gradients and accumulate_param_gradients raise NotImplementedErrors
+
+Milestone 2 (not started)
+
+- hierarchical selections implemented and tested
+
+- choice_gradients and accumulate_param_grads implemented and tested for the hierarchical address case
+
+- still no incremental computation (no change hints) and AD will only work for arguments to generative functions that are are Tensors (not for arguments that are Python compound data types) and for return values of generative functions that are Tensors (not Python compound data types)
+
+Milestone 3 (not started)
+
+- add GenList and other compound data types, and combinators
+
+- make AD work when arguments and return values of non-spliced generative functions are either Tensors OR our compound data types (e.g. GenList)
+
+- but don't yet implement change hints or persistent data types (use regular Python data types in the internal implementation, and copy data all the time) 
+
+Milestone 4 (not started)
+
+- add incremental computation (update and regenerate), building on `pyrsistent` and implement regenerate
+
+- add change hings
+
+
 # MiniPyTorchGenDML
 
 A minimal Gen dynamic modeling language (DML) implementation in PyTorch.
