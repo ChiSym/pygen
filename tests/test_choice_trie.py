@@ -60,6 +60,20 @@ def test_trie_tuples_as_keys():
         subtrie = trie.get_subtrie(addr(k))
         assert subtrie.is_primitive()
 
+def test_trie_ovewrite_primitive_primitive():
+    trie = MutableChoiceTrie()
+    trie[addr('a')] = 2
+    assert trie[addr('a')] == 2
+    trie[addr('a')] = 3
+    assert trie[addr('a')] == 3
+
+def test_trie_ovewrite_primitive_nonprimitive():
+    trie = MutableChoiceTrie()
+    trie[addr('a')] = 2
+    assert trie.asdict() == {'a': {(): 2}}
+    trie[addr('a', 'b')] = 2
+    assert trie.asdict() == {'a': {'b': {(): 2}}}
+
 def test_trie_interactive_session_1():
     trie = MutableChoiceTrie()
     # Create a primitive.
