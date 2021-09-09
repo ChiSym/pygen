@@ -87,6 +87,7 @@ def test_trie_interactive_session_1():
     trie[addr('a', 'c')] = 5
     subtrie = trie.get_subtrie(addr('a'))
     assert not subtrie.is_primitive()
+    assert subtrie == trie[addr('a')]
     assert subtrie[addr('c')] == 5
     # Confirm values.
     assert trie[addr('a', 'c')] == 5
