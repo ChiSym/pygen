@@ -173,16 +173,44 @@ class DMLTrace(Trace):
                 trie.set_subtrie(k, v.get_choice_trie())
             else:
                 assert isinstance(v, dict)
-                trie.set_subtrie(k, _to_choice_trie(v))
+                trie.set_subtrie(k, DMLTrace._to_choice_trie(v))
 
     def get_choice_trie(self):
         if self.empty_address_subtrace is not None:
             trie = MutableChoiceTrie()
-            trie[addr()] = self.empty_address.subtrace.get_retval()
+            trie[addr()] = self.empty_address_subtrace.get_retval()
             return trie
         else:
             DMLTrace._to_choice_trie(self.subtraces_trie)
 
+    def _deleted_subtraces_score(prev_subtraces_trie, new_subtraces_trie):
+        score = torch.tensor(0.0, requires_grad=False)
+        for (k, v) in prev_subtraces_trie.items():
+            if isinstance(v, Trace):
+                if k not in new_subtraces_trie:
+                    score += v.get_score()
+            else:
+                assert isinstance(v, dict)
+                if k in new_subtraces_trie:
+                    score += _deleted_subtraces_score(v, new_subtraces_trie[v])
+                else:
+                    score += _deleted_subtraces_score(v, {})
+        return score
+
+    def _add_unvisited_to_discard(discard, prev_subtraces_trie, new_subtraces_trie):
+        for (k, v) in prev_subtraces_trie.items():
+            if isinstance(v, Trace):
+                if k not in new_subtraces_trie:
+                    discard.set_subtrie(k, v.get_choice_trie())
+            else:
+                assert isinstance(v, dict)
+                if k in new_subtraces_trie:
+                    _add_unvisited_to_discard(discard.get_subtrie(), v, new_subtraces_trie[v])
+                else:
+                    d = MutableChoiceTrie()
+                    _add_unvisited_to_discard(d, v, new_subtraces_trie[v])
+                    discard.set_subtrie(k, d)
+    
     def update(self, args, constraints):
         new_trace = DMLTrace(self.get_gen_fn(), args)
         discard = MutableChoiceTrie()
@@ -220,13 +248,8 @@ class DMLTrace(Trace):
         with torch.inference_mode(mode=True):
             new_trace.retval = p(*args)
 
-        #log_weight -= self.get_score()
-        # TODO we need to subtract out the score contributions from subtraces that were removed
-
-        # TODO we need to compute the discard correctly:
-        for (addr, value) in self.get_choices().items():
-            if not addr in new_trace.choices:
-                discard[addr] = value
+        log_weight -= DMLTrace._deleted_subtrace_score(self.subtraces_trie, new_trace.subtraces_trie)
+        self._add_unvisited_to_discard(discard, new_trace)
 
         return (new_trace, log_weight, discard)
 
