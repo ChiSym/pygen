@@ -33,7 +33,6 @@ class ChoiceAddress:
             return NotImplemented
         return ChoiceAddress(self.keys + x.keys)
 
-
 def addr(*args):
     return ChoiceAddress(args)
 
