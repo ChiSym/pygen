@@ -227,3 +227,81 @@ def test_subtrie_circular_complex():
     trie.set_subtrie(addr('a', 'b'), subtrie)
     assert trie.get_subtrie(addr('a', 'b')) == subtrie
     # XXX Warning: Cannot print(subtrie), infinite recursion.
+
+
+def test_update_empty_or_primitive():
+
+    # other is primitive
+    other = MutableChoiceTrie()
+    other[addr()] = 2.0
+    trie = MutableChoiceTrie()
+    trie[addr()] = 1.0
+    trie.update(other)
+    assert trie == other
+    trie = MutableChoiceTrie()
+    trie.update(other)
+    assert trie == other
+
+    # other is empty
+    other = MutableChoiceTrie()
+    trie = MutableChoiceTrie()
+    trie.update(other)
+    assert trie == other
+    trie = MutableChoiceTrie()
+    trie[addr()] = 1.0
+    trie.update(other)
+    assert trie == other
+
+    # other is not empty or primitive
+    other = MutableChoiceTrie()
+    other[addr('a')] = 2.0
+    inner = MutableChoiceTrie()
+    inner[addr('c')] = 3.0
+    other.set_subtrie(addr('b'), inner)
+    trie = MutableChoiceTrie()
+    trie.update(other)
+    assert trie == other
+    trie = MutableChoiceTrie()
+    trie[addr()] = 1.0
+    trie.update(other)
+    assert trie == other
+
+
+def test_update_nonprimitive():
+
+    def make_original():
+        trie = MutableChoiceTrie()
+        trie[addr('a')] = 1.0
+        trie[addr('b')] = 2.0
+        inner = MutableChoiceTrie()
+        inner[addr('d')] = 3.0
+        trie.set_subtrie(addr('c'), inner)
+        return trie
+
+    # other is primitive
+    other = MutableChoiceTrie()
+    other[addr()] = 2.0
+    trie = make_original()
+    trie.update(other)
+    assert trie == other
+
+    # other is empty
+    other = MutableChoiceTrie()
+    trie = make_original()
+    trie.update(other)
+    assert trie == other
+
+    # other is not empty or primitive
+    other = MutableChoiceTrie()
+    other[addr('a')] = 4.0
+    inner = MutableChoiceTrie()
+    inner[addr('e', 'f')] = 5.0
+    other.set_subtrie(addr('c'), inner)
+    trie = make_original()
+    trie.update(other)
+    expected = MutableChoiceTrie()
+    expected[addr('a')] = 4.0
+    expected[addr('b')] = 2.0
+    expected[addr('c', 'd')] = 3.0
+    expected[addr('c', 'e', 'f')] = 5.0
+    assert trie == expected

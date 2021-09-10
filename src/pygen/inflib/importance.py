@@ -1,3 +1,4 @@
+from pygen.choice_trie import MutableChoiceTrie
 import torch
 
 def importance_sampling_custom_proposal(
@@ -10,9 +11,9 @@ def importance_sampling_custom_proposal(
     for i in range(num_samples):
         if verbose:
             print(f"sample: {i} of {num_samples}")
-        (proposed_choices, proposal_weight, _) = proposal.propose(proposal_args)
-        constraints = observations.copy()
-        constraints.update(proposed_choices)
+        (proposal_choices, proposal_weight, _) = proposal.propose(proposal_args)
+        constraints = MutableChoiceTrie.copy(observations)
+        constraints.update(proposal_choices)
         (trace, model_weight) = model.generate(model_args, constraints)
         traces.append(trace)
         log_weights.append(model_weight - proposal_weight)
@@ -26,7 +27,7 @@ def importance_resampling_custom_proposal(
         proposal, proposal_args,
         num_samples, verbose=False):
     (proposal_choices, proposal_weight, _) = proposal.propose(proposal_args)
-    constraints = observations.copy()
+    constraints = MutableChoiceTrie.copy(observations)
     constraints.update(proposal_choices)
     (model_trace, model_weight) = model.generate(model_args, constraints)
     log_total_weight = model_weight - proposal_weight
@@ -34,7 +35,7 @@ def importance_resampling_custom_proposal(
         if verbose:
             print(f"sample: {i} of {num_samples}")
         (proposal_choices, proposal_weight, _) = proposal.propose(proposal_args)
-        constraints = observations.copy()
+        constraints = MutableChoiceTrie.copy(observations)
         constraints.update(proposal_choices)
         (cand_model_trace, model_weight) = model.generate(model_args, constraints)
         log_weight = model_weight - proposal_weight

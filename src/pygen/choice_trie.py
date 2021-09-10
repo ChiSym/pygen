@@ -110,6 +110,25 @@ class MutableChoiceTrie(ChoiceTrie):
         # Recurse.
         self.trie[key].set_subtrie(rest, subtrie)
 
+    def update(self, other):
+        """Update this choice trie with the contents of the other; where the other takes precedence"""
+        assert isinstance(other, ChoiceTrie)
+        if not other:
+            # other is empty
+            self.trie = {}
+        elif other.is_primitive():
+            self.trie = {(): other.get_choice(addr())}
+        elif self.is_primitive():
+            # we need to set ourselves to the other
+            self.trie = MutableChoiceTrie.copy(other).trie
+        else:
+            for (address, other_subtrie) in other:
+                try:
+                    self_subtrie = self.get_subtrie(address)
+                    self_subtrie.update(other_subtrie)
+                except RuntimeError:
+                    self.set_subtrie(address, MutableChoiceTrie.copy(other_subtrie))
+
     def get_shallow_choices(self):
         for k, subtrie in self.trie.items():
             if subtrie.is_primitive():

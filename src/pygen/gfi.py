@@ -8,15 +8,16 @@ class GenFn:
 
     def propose(self, args):
         trace = self.simulate(args)
-        choices = trace.get_choices()
+        choice_trie = trace.get_choice_trie()
         weight = trace.get_score()
         retval = trace.get_retval()
-        return (choices, weight, retval)
+        return (choice_trie, weight, retval)
 
     def assess(self, args, constraints):
         (trace, weight) = self.generate(args, constraints)
         retval = trace.get_retval()
         return (weight, retval)
+
 
 class Trace:
 
@@ -29,7 +30,7 @@ class Trace:
     def get_score(self):
         raise NotImplementedError()
 
-    def get_choices(self):
+    def get_choice_trie(self):
         raise NotImplementedError()
 
     def update(self, args, constraints):
@@ -38,7 +39,7 @@ class Trace:
     def regenerate(self, args, selection):
         raise NotImplementedError()
 
-    def accum_param_grads(self, retgrad, scale_factor):
+    def accumulate_param_gradients(self, retgrad, scale_factor):
         raise NotImplementedError()
 
     def choice_gradients(self, selection, retgrad):

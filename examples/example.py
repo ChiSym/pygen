@@ -42,7 +42,7 @@ assert len(binary_img) == likelihood.fc21.out_features
 
 # simulate
 trace = model.simulate((10,))
-choices = trace.get_choices()
+choices = trace.get_choice_trie()
 retval = trace.get_retval()
 score = trace.get_score()
 print(f"score: {score}")
@@ -51,12 +51,12 @@ print(f"retval: {retval}")
 
 # generate
 (trace, log_weight) = model.generate((10,), {"img" : torch.zeros((5,))})
-choices = trace.get_choices()
+choices = trace.get_choice_trie()
 print(f"choices: {choices}, log_weight: {log_weight}")
 
 # update
 (new_trace, log_weight, discard) = trace.update((10,), {"z" : torch.zeros((10,))})
-new_choices = new_trace.get_choices()
+new_choices = new_trace.get_choice_trie()
 print(f"new_choices: {new_choices}, log_weight: {log_weight}, discard: {discard}")
 
 n = 1000
