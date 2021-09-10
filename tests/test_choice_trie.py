@@ -3,6 +3,7 @@ import pytest
 from pygen.choice_address import addr
 from pygen.choice_trie import ChoiceTrie
 from pygen.choice_trie import MutableChoiceTrie
+from pygen.choice_trie import MutableChoiceTrieError
 
 def test_trie_empty():
     # Empty trie.
@@ -13,10 +14,11 @@ def test_trie_empty():
     assert MutableChoiceTrie.copy(trie) == trie
     assert MutableChoiceTrie.copy(trie) is not trie
     for address in [addr(), addr('a')]:
-        with pytest.raises(RuntimeError):
+        with pytest.raises(MutableChoiceTrieError):
             trie.get_subtrie(addr('a'))
-        with pytest.raises(RuntimeError):
+        with pytest.raises(MutableChoiceTrieError):
             trie.get_choice(addr('a'))
+    assert trie.get_subtrie(addr('a'), strict=False) == MutableChoiceTrie()
 
 def test_trie_primitive():
     # Primitive trie.
@@ -32,17 +34,18 @@ def test_trie_primitive():
     assert MutableChoiceTrie.copy(trie) == trie
     assert MutableChoiceTrie.copy(trie) is not trie
     # Cannot write to a primitive trie.
-    with pytest.raises(RuntimeError):
+    with pytest.raises(MutableChoiceTrieError):
         trie[addr('a')] = 1
     # Can overwrite primitive trie.
     trie[addr()] = 2
     assert trie[addr()] == trie.get_choice(addr()) == 2
     assert trie.asdict() == {(): 2}
     # Cannot get subtrie of primitive.
-    with pytest.raises(RuntimeError):
+    with pytest.raises(MutableChoiceTrieError):
         trie.get_subtrie(addr())
+    assert trie.get_subtrie(addr(), strict=False) == MutableChoiceTrie()
     # Cannot set subtrie of primitive.
-    with pytest.raises(RuntimeError):
+    with pytest.raises(MutableChoiceTrieError):
         trie.set_subtrie(addr(), MutableChoiceTrie())
 
 def test_trie_single_address():
@@ -52,9 +55,9 @@ def test_trie_single_address():
     assert trie[addr('a')] == trie.get_choice(addr('a')) == 1
     assert not trie.is_primitive()
     for address in [addr(), addr('b')]:
-        with pytest.raises(RuntimeError):
+        with pytest.raises(MutableChoiceTrieError):
             trie[addr()]
-        with pytest.raises(RuntimeError):
+        with pytest.raises(MutableChoiceTrieError):
             trie.get_choice(addr())
     assert trie.asdict() == {'a': {(): 1}}
     subtrie = trie.get_subtrie(addr('a'))
@@ -64,9 +67,10 @@ def test_trie_single_address():
 def test_trie_set_get_empty_address():
     trie = MutableChoiceTrie()
     trie[addr('a')] = 1
-    with pytest.raises(RuntimeError):
+    with pytest.raises(MutableChoiceTrieError):
         trie.get_subtrie(addr())
-    with pytest.raises(RuntimeError):
+    assert trie.get_subtrie(addr(), strict=False) == MutableChoiceTrie()
+    with pytest.raises(MutableChoiceTrieError):
         trie.set_subtrie(addr(), MutableChoiceTrie())
 
 def test_trie_tuples_as_keys():
@@ -104,7 +108,7 @@ def test_trie_interactive_session_1():
     assert trie.asdict() == {'a': {(): 2}, 'b': {'c': {(): 3}}}
     subtrie = trie.get_subtrie(addr('b'))
     # Test difference between get_choice and __getitem__
-    with pytest.raises(RuntimeError):
+    with pytest.raises(MutableChoiceTrieError):
         trie.get_choice(addr('b'))
     assert isinstance(trie[addr('b')], ChoiceTrie)
     assert not subtrie.is_primitive()
@@ -116,14 +120,14 @@ def test_trie_interactive_session_1():
     assert trie.asdict() == {'a': {(): 2}, 'b': {'c': {(): 3}, 'd': {(): 14}}}
     assert trie[addr('b')] == trie.get_subtrie(addr('b'))
     assert trie[addr('b')].asdict() == {'c': {(): 3}, 'd': {(): 14}}
-    with pytest.raises(RuntimeError):
+    with pytest.raises(MutableChoiceTrieError):
         trie.get_subtrie(addr('d'))
     subtrie = trie.get_subtrie(addr('b', 'd'))
     assert subtrie.is_primitive()
     assert subtrie[addr()] == 14
     # Overwrite a primitive with a compound.
     trie[addr('a', 'c')] = 5
-    with pytest.raises(RuntimeError):
+    with pytest.raises(MutableChoiceTrieError):
         subtrie.get_choice(addr('a'))
     subtrie = trie.get_subtrie(addr('a'))
     assert subtrie == trie[addr('a')]
@@ -162,7 +166,6 @@ def test_trie_primitive_ChoiceTrie_vs_primitive_dict():
     assert d2 == {'b': {(): trie_value}}
     # = Confirm they are not equal
     assert d1 != d2
-
 
 def test_subtrie_nested():
     trie = MutableChoiceTrie()
@@ -228,14 +231,12 @@ def test_subtrie_circular_complex():
     assert trie.get_subtrie(addr('a', 'b')) == subtrie
     # XXX Warning: Cannot print(subtrie), infinite recursion.
 
-
 def test_update_empty_or_primitive():
-
     # other is primitive
     other = MutableChoiceTrie()
-    other[addr()] = 2.0
+    other[addr()] = 2
     trie = MutableChoiceTrie()
-    trie[addr()] = 1.0
+    trie[addr()] = 1
     trie.update(other)
     assert trie == other
     trie = MutableChoiceTrie()
@@ -248,60 +249,74 @@ def test_update_empty_or_primitive():
     trie.update(other)
     assert trie == other
     trie = MutableChoiceTrie()
-    trie[addr()] = 1.0
+    trie[addr()] = 1
     trie.update(other)
-    assert trie == other
+    assert trie[addr()] == 1
 
     # other is not empty or primitive
     other = MutableChoiceTrie()
-    other[addr('a')] = 2.0
+    other[addr('a')] = 2
     inner = MutableChoiceTrie()
-    inner[addr('c')] = 3.0
+    inner[addr('c')] = 3
     other.set_subtrie(addr('b'), inner)
     trie = MutableChoiceTrie()
     trie.update(other)
     assert trie == other
     trie = MutableChoiceTrie()
-    trie[addr()] = 1.0
+    trie[addr()] = 1
     trie.update(other)
     assert trie == other
+    trie[addr('a')] = 5
+    assert other[addr('a')] == 2
 
+    # self is primitive
+    trie = MutableChoiceTrie()
+    trie[addr('a')] = 1
+    other = MutableChoiceTrie()
+    other[addr('a', 'b')] = 2
+    trie.update(other)
+    trie[addr('a', 'b')] = 7
+    assert other[addr('a', 'b')] == 2
 
 def test_update_nonprimitive():
 
     def make_original():
         trie = MutableChoiceTrie()
-        trie[addr('a')] = 1.0
-        trie[addr('b')] = 2.0
+        trie[addr('a')] = 1
+        trie[addr('b')] = 2
         inner = MutableChoiceTrie()
-        inner[addr('d')] = 3.0
+        inner[addr('d')] = 3
         trie.set_subtrie(addr('c'), inner)
         return trie
 
     # other is primitive
     other = MutableChoiceTrie()
-    other[addr()] = 2.0
+    other[addr()] = 2
     trie = make_original()
     trie.update(other)
     assert trie == other
+    other[addr()] = 3
+    assert trie[addr()] == 2
 
     # other is empty
     other = MutableChoiceTrie()
     trie = make_original()
     trie.update(other)
-    assert trie == other
+    assert trie == make_original()
 
     # other is not empty or primitive
     other = MutableChoiceTrie()
-    other[addr('a')] = 4.0
+    other[addr('a')] = 4
     inner = MutableChoiceTrie()
-    inner[addr('e', 'f')] = 5.0
+    inner[addr('e', 'f')] = 5
     other.set_subtrie(addr('c'), inner)
     trie = make_original()
     trie.update(other)
     expected = MutableChoiceTrie()
-    expected[addr('a')] = 4.0
-    expected[addr('b')] = 2.0
-    expected[addr('c', 'd')] = 3.0
-    expected[addr('c', 'e', 'f')] = 5.0
+    expected[addr('a')] = 4
+    expected[addr('b')] = 2
+    expected[addr('c', 'd')] = 3
+    expected[addr('c', 'e', 'f')] = 5
+    assert trie == expected
+    other[addr('c', 'e', 'f')] = 1
     assert trie == expected

@@ -1,17 +1,8 @@
 from ..gfi import GenFn, Trace
 from ..choice_address import ChoiceAddress, addr
-from ..choice_trie import ChoiceTrie, MutableChoiceTrie
+from ..choice_trie import ChoiceTrie, MutableChoiceTrie, MutableChoiceTrieError
 from functools import wraps
 import torch
-
-
-def _get_subtrie_or_empty(choice_trie, address):
-    assert isinstance(choice_trie, ChoiceTrie)
-    assert isinstance(address, ChoiceAddress)
-    try:
-        return choice_trie.get_subtrie(address)
-    except RuntimeError:
-        return MutableChoiceTrie()
 
 
 # inject variables into a function's scope:
@@ -92,7 +83,7 @@ class DMLGenFn(GenFn):
                 if address is None:
                     return _splice_dml_call(callee, callee_args, gentrace)
                 else:
-                    sub_constraints = _get_subtrie_or_empty(constraints, address)
+                    sub_constraints = constraints.get_subtrie(address, strict=False)
                     (subtrace, log_weight_increment) = callee.generate(callee_args, sub_constraints)
                     nonlocal log_weight
                     log_weight += log_weight_increment
@@ -267,12 +258,12 @@ class DMLTrace(Trace):
                             raise RuntimeError(f'Generative function at address {address}'
                                                'changed from {prev_callee} to {callee}')
                         (subtrace, log_weight_increment, sub_discard) = prev_subtrace.update(
-                            callee_args, _get_subtrie_or_empty(constraints, address))
+                            callee_args, constraints.get_subtrie(address, strict=False))
                         if sub_discard:
                             discard.set_subtrie(address, sub_discard)
                     else:
                         (subtrace, log_weight_increment) = callee.generate(
-                            callee_args, _get_subtrie_or_empty(constraints, address))
+                            callee_args, constraints.get_subtrie(address, strict=False))
                     log_weight += log_weight_increment
                     new_trace._record_subtrace(subtrace, address)
                     return subtrace.get_retval()
