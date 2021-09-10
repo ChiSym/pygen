@@ -265,6 +265,17 @@ def test_update_empty_or_primitive():
     trie[addr()] = 1.0
     trie.update(other)
     assert trie == other
+    trie[addr('a')] = 5.0
+    assert other[addr('a')] == 2.0
+
+    # self is primitive
+    trie = MutableChoiceTrie()
+    trie[addr('a')] = 1
+    other = MutableChoiceTrie()
+    other[addr('a', 'b')] = 2.0
+    trie.update(other)
+    trie[addr('a', 'b')] = 7.0
+    assert other[addr('a', 'b')] == 2.0
 
 
 def test_update_nonprimitive():
@@ -284,6 +295,8 @@ def test_update_nonprimitive():
     trie = make_original()
     trie.update(other)
     assert trie == other
+    other[addr()] = 3.0
+    assert trie[addr()] == 2.0
 
     # other is empty
     other = MutableChoiceTrie()
@@ -304,4 +317,6 @@ def test_update_nonprimitive():
     expected[addr('b')] = 2.0
     expected[addr('c', 'd')] = 3.0
     expected[addr('c', 'e', 'f')] = 5.0
+    assert trie == expected
+    other[addr('c', 'e', 'f')] = 1.0
     assert trie == expected
