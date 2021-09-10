@@ -18,6 +18,7 @@ def test_trie_empty():
             trie.get_subtrie(addr('a'))
         with pytest.raises(MutableChoiceTrieError):
             trie.get_choice(addr('a'))
+    assert trie.get_subtrie(addr('a'), strict=False) == MutableChoiceTrie()
 
 def test_trie_primitive():
     # Primitive trie.
@@ -42,6 +43,7 @@ def test_trie_primitive():
     # Cannot get subtrie of primitive.
     with pytest.raises(MutableChoiceTrieError):
         trie.get_subtrie(addr())
+    assert trie.get_subtrie(addr(), strict=False) == MutableChoiceTrie()
     # Cannot set subtrie of primitive.
     with pytest.raises(MutableChoiceTrieError):
         trie.set_subtrie(addr(), MutableChoiceTrie())
@@ -67,6 +69,7 @@ def test_trie_set_get_empty_address():
     trie[addr('a')] = 1
     with pytest.raises(MutableChoiceTrieError):
         trie.get_subtrie(addr())
+    assert trie.get_subtrie(addr(), strict=False) == MutableChoiceTrie()
     with pytest.raises(MutableChoiceTrieError):
         trie.set_subtrie(addr(), MutableChoiceTrie())
 

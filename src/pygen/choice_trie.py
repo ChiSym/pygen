@@ -17,8 +17,14 @@ class ChoiceTrie:
         stored under the empty address `addr()`."""
         raise NotImplementedError()
 
-    def get_subtrie(self, address):
-        """Return the trie under the given `address`."""
+    def get_subtrie(self, address, strict=None):
+        """Return the trie under the given `address`. By default, it is an
+        error if the trie does not have a subtrie at `address`.
+
+        The optional keyword `strict` can be set to `False` to request
+        that an empty ChoicTrie is returned whenever `address` is invalid,
+        instead of throwing an error.
+        """
         raise NotImplementedError()
 
     def get_choice(self, address):
@@ -75,17 +81,17 @@ class MutableChoiceTrie(ChoiceTrie):
         rest = address.rest()
         return self.trie[key].get_choice(rest)
 
-    def get_subtrie(self, address):
+    def get_subtrie(self, address, strict=None):
         assert isinstance(address, ChoiceAddress)
         # Primitive trie.
         if self.is_primitive():
-            raise MCTError('Cannot get_subtrie of primitive MutableChoiceTrie.')
+            return empty_trie_or_error('Cannot get_subtrie of primitive MutableChoiceTrie.', strict)
         # Compound trie.
         if not address:
-            raise MCTError('Cannot get_subtrie at empty address.')
+            return empty_trie_or_error('Cannot get_subtrie at empty address.', strict)
         key = address.first()
         if key not in self.trie:
-            raise MCTError(f'No subtrie under address: {address}')
+            return empty_trie_or_error(f'No subtrie under address: {address}', strict)
         rest = address.rest()
         if not rest:
             return self.trie[key]
@@ -241,3 +247,8 @@ class MutableChoiceTrie(ChoiceTrie):
                 subtrie_recursive = MutableChoiceTrie.copy(subtrie)
                 trie.set_subtrie(address, subtrie_recursive)
         return trie
+
+def empty_trie_or_error(error_msg, strict):
+    if strict is None or strict:
+        raise MCTError(error_msg)
+    return MutableChoiceTrie()
