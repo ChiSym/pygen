@@ -233,9 +233,9 @@ def test_update_empty_or_primitive():
 
     # other is primitive
     other = MutableChoiceTrie()
-    other[addr()] = 2.0
+    other[addr()] = 2
     trie = MutableChoiceTrie()
-    trie[addr()] = 1.0
+    trie[addr()] = 1
     trie.update(other)
     assert trie == other
     trie = MutableChoiceTrie()
@@ -248,55 +248,55 @@ def test_update_empty_or_primitive():
     trie.update(other)
     assert trie == other
     trie = MutableChoiceTrie()
-    trie[addr()] = 1.0
+    trie[addr()] = 1
     trie.update(other)
-    assert trie[addr()] == 1.0
+    assert trie[addr()] == 1
 
     # other is not empty or primitive
     other = MutableChoiceTrie()
-    other[addr('a')] = 2.0
+    other[addr('a')] = 2
     inner = MutableChoiceTrie()
-    inner[addr('c')] = 3.0
+    inner[addr('c')] = 3
     other.set_subtrie(addr('b'), inner)
     trie = MutableChoiceTrie()
     trie.update(other)
     assert trie == other
     trie = MutableChoiceTrie()
-    trie[addr()] = 1.0
+    trie[addr()] = 1
     trie.update(other)
     assert trie == other
-    trie[addr('a')] = 5.0
-    assert other[addr('a')] == 2.0
+    trie[addr('a')] = 5
+    assert other[addr('a')] == 2
 
     # self is primitive
     trie = MutableChoiceTrie()
     trie[addr('a')] = 1
     other = MutableChoiceTrie()
-    other[addr('a', 'b')] = 2.0
+    other[addr('a', 'b')] = 2
     trie.update(other)
-    trie[addr('a', 'b')] = 7.0
-    assert other[addr('a', 'b')] == 2.0
+    trie[addr('a', 'b')] = 7
+    assert other[addr('a', 'b')] == 2
 
 
 def test_update_nonprimitive():
 
     def make_original():
         trie = MutableChoiceTrie()
-        trie[addr('a')] = 1.0
-        trie[addr('b')] = 2.0
+        trie[addr('a')] = 1
+        trie[addr('b')] = 2
         inner = MutableChoiceTrie()
-        inner[addr('d')] = 3.0
+        inner[addr('d')] = 3
         trie.set_subtrie(addr('c'), inner)
         return trie
 
     # other is primitive
     other = MutableChoiceTrie()
-    other[addr()] = 2.0
+    other[addr()] = 2
     trie = make_original()
     trie.update(other)
     assert trie == other
-    other[addr()] = 3.0
-    assert trie[addr()] == 2.0
+    other[addr()] = 3
+    assert trie[addr()] == 2
 
     # other is empty
     other = MutableChoiceTrie()
@@ -306,17 +306,17 @@ def test_update_nonprimitive():
 
     # other is not empty or primitive
     other = MutableChoiceTrie()
-    other[addr('a')] = 4.0
+    other[addr('a')] = 4
     inner = MutableChoiceTrie()
-    inner[addr('e', 'f')] = 5.0
+    inner[addr('e', 'f')] = 5
     other.set_subtrie(addr('c'), inner)
     trie = make_original()
     trie.update(other)
     expected = MutableChoiceTrie()
-    expected[addr('a')] = 4.0
-    expected[addr('b')] = 2.0
-    expected[addr('c', 'd')] = 3.0
-    expected[addr('c', 'e', 'f')] = 5.0
+    expected[addr('a')] = 4
+    expected[addr('b')] = 2
+    expected[addr('c', 'd')] = 3
+    expected[addr('c', 'e', 'f')] = 5
     assert trie == expected
-    other[addr('c', 'e', 'f')] = 1.0
+    other[addr('c', 'e', 'f')] = 1
     assert trie == expected
