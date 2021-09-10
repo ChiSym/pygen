@@ -250,7 +250,7 @@ def test_update_empty_or_primitive():
     trie = MutableChoiceTrie()
     trie[addr()] = 1.0
     trie.update(other)
-    assert trie == other
+    assert trie[addr()] == 1.0
 
     # other is not empty or primitive
     other = MutableChoiceTrie()
@@ -289,7 +289,7 @@ def test_update_nonprimitive():
     other = MutableChoiceTrie()
     trie = make_original()
     trie.update(other)
-    assert trie == other
+    assert trie == make_original()
 
     # other is not empty or primitive
     other = MutableChoiceTrie()

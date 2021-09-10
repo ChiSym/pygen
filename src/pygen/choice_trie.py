@@ -114,8 +114,7 @@ class MutableChoiceTrie(ChoiceTrie):
         """Update this choice trie with the contents of the other; where the other takes precedence"""
         assert isinstance(other, ChoiceTrie)
         if not other:
-            # other is empty
-            self.trie = {}
+            return
         elif other.is_primitive():
             self.trie = {(): other.get_choice(addr())}
         elif self.is_primitive():
