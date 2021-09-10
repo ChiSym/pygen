@@ -34,12 +34,10 @@ def _inject_variables(context, func):
     return new_func
 
 
-def _splice_dml_call(callee, args, address, gentrace):
+def _splice_dml_call(callee, args, gentrace):
     if not isinstance(callee, DMLGenFn):
         raise RuntimeError("Address required when"
                            f" calling a non-DML generative function: {callee}")
-    if address is not None:
-        raise RuntimeError(f"Address must not be provided for a DML call, got: {address}")
     p = _inject_variables({"gentrace": gentrace}, callee.p)
     return p(*args)
 
@@ -66,7 +64,7 @@ class DMLGenFn(GenFn):
             assert (address is None) or isinstance(address, ChoiceAddress)
             if isinstance(callee, GenFn):
                 if address is None:
-                    return _splice_dml_call(callee, callee_args, address, gentrace)
+                    return _splice_dml_call(callee, callee_args, gentrace)
                 else:
                     subtrace = callee.simulate(callee_args)
                     trace._record_subtrace(subtrace, address)
@@ -92,7 +90,7 @@ class DMLGenFn(GenFn):
             assert (address is None) or isinstance(address, ChoiceAddress)
             if isinstance(callee, GenFn):
                 if address is None:
-                    return _splice_dml_call(callee, callee_args, address, gentrace)
+                    return _splice_dml_call(callee, callee_args, gentrace)
                 else:
                     sub_constraints = _get_subtrie_or_empty(constraints, address)
                     (subtrace, log_weight_increment) = callee.generate(callee_args, sub_constraints)
@@ -260,7 +258,7 @@ class DMLTrace(Trace):
             assert (address is None) or isinstance(address, ChoiceAddress)
             if isinstance(callee, GenFn):
                 if address is None:
-                    return _splice_dml_call(callee, callee_args, address, gentrace)
+                    return _splice_dml_call(callee, callee_args, gentrace)
                 else:
                     nonlocal log_weight
                     prev_subtrace = self._get_subtrace(self.subtraces_trie, address)
