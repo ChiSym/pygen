@@ -92,6 +92,6 @@ def test_update():
     trie = MutableChoiceTrie()
     trie[Z] = z_new
     (new_trace, log_weight, discard) = trace.update((mu_new,), trie)
-    assert torch.allclose(log_weight, new_trace.get_score() - trace.get_score())
+    assert torch.allclose(log_weight, new_trace.get_score() - trace.get_score(), atol=1e-6)
     assert torch.allclose(new_trace.get_choice_trie()[Z], z_new)
     assert torch.allclose(new_trace.get_choice_trie()[X], x)
