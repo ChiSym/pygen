@@ -163,7 +163,6 @@ def test_trie_primitive_ChoiceTrie_vs_primitive_dict():
     # = Confirm they are not equal
     assert d1 != d2
 
-
 def test_subtrie_nested():
     trie = MutableChoiceTrie()
     trie[addr('a')] = 1.123
@@ -228,9 +227,7 @@ def test_subtrie_circular_complex():
     assert trie.get_subtrie(addr('a', 'b')) == subtrie
     # XXX Warning: Cannot print(subtrie), infinite recursion.
 
-
 def test_update_empty_or_primitive():
-
     # other is primitive
     other = MutableChoiceTrie()
     other[addr()] = 2
@@ -276,7 +273,6 @@ def test_update_empty_or_primitive():
     trie.update(other)
     trie[addr('a', 'b')] = 7
     assert other[addr('a', 'b')] == 2
-
 
 def test_update_nonprimitive():
 
