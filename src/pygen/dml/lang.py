@@ -1,6 +1,6 @@
 from ..gfi import GenFn, Trace
 from ..choice_address import ChoiceAddress, addr
-from ..choice_trie import ChoiceTrie, MutableChoiceTrie
+from ..choice_trie import ChoiceTrie, MutableChoiceTrie, MutableChoiceTrieError
 from functools import wraps
 import torch
 
@@ -10,7 +10,7 @@ def _get_subtrie_or_empty(choice_trie, address):
     assert isinstance(address, ChoiceAddress)
     try:
         return choice_trie.get_subtrie(address)
-    except RuntimeError:
+    except MutableChoiceTrieError:
         return MutableChoiceTrie()
 
 
