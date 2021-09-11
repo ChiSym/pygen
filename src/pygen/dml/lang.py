@@ -106,6 +106,32 @@ class DMLGenFn(GenFn):
         return trace.get_retval()
 
 
+def torch_autograd_function_from_trace(trace):
+
+    class AutogradFunctionForTrace(torch.autograd.Function):
+
+        @staticmethod
+        def forward(ctx, *args):
+            return trace.get_score(), trace.get_retval()
+
+        @staticmethod
+        def backward(ctx, score_increment_grad, retval_grad):
+            assert isinstance(score_increment_grad, torch.Tensor)
+            assert isinstance(retval_grad, torch.Tensor)
+            assert not score_increment_grad.requires_grad
+            assert not retval_grad.requires_grad
+            arg_grads, choice_dict, grad_dict = trace.choice_gradients(None, retval_grad)
+            assert isinstance(arg_grads, tuple)
+            for grad in arg_grads:
+                assert isinstance(grad, torch.Tensor)
+                assert not grad.requires_grad
+            assert choice_dict is None
+            assert grad_dict is None
+            return arg_grads
+
+    return AutogradFunctionForTrace.apply
+
+
 class DMLTrace(Trace):
 
     def __init__(self, gen_fn, args):
@@ -288,7 +314,46 @@ class DMLTrace(Trace):
         raise NotImplementedError()
 
     def choice_gradients(self, selection, retval_grad):
-        raise NotImplementedError()
+        if selection is not None:
+            raise NotImplementedError() # TODO add support for gradients wrt choices.
+        with torch.inference_mode(mode=False):
+            score = torch.tensor(0.0, requires_grad=False)
+
+            def gentrace(callee, callee_args, address=None):
+                if isinstance(callee, GenFn):
+                    if address is None:
+                        return _splice_dml_call(callee, callee_args, gentrace)
+                    else:
+                        for arg in callee_args:
+                            if not isinstance(arg, torch.Tensor):
+                                raise NotImplementedError("Only Tensor arguments are currently supported")
+                        with torch.inference_mode(mode=True):
+                            prev_subtrace = self._get_subtrace(self.subtraces_trie, address)
+                            torch_autograd_function = torch_autograd_function_from_trace(prev_subtrace)
+                        (score_increment, callee_retval) = torch_autograd_function(*callee_args)
+                        nonlocal score
+                        score += score_increment
+                        if not isinstance(callee_retval, torch.Tensor):
+                            raise NotImplementedError("Only a single Tensor return value is currently")
+                        return callee_retval
+                elif isinstance(callee, torch.nn.Module):
+                    for param in callee.parameters():
+                        param.requires_grad_(False)
+                    return callee(*callee_args)
+                else:
+                    raise RuntimeError("Unknown type of generative function: {callee}")
+
+            p = _inject_variables({"gentrace" : gentrace}, self.gen_fn.p)
+            args_tracked = tuple(
+                arg.detach().clone().requires_grad_(True) if isinstance(arg, torch.Tensor) else arg
+                for arg in self.get_args())
+            retval = p(*args_tracked)
+
+            arg_grads = torch.autograd.grad(
+                (score, retval), args_tracked,
+                grad_outputs=(torch.tensor(1.0), retval_grad))
+
+        return arg_grads, None, None
 
     def accumulate_param_gradients(self, retgrad, scale_factor):
         raise NotImplementedError()

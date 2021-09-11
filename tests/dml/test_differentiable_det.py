@@ -29,13 +29,13 @@ X = addr('x')
 @gendml
 def f(mu):
     assert len(mu) == 2
-    z = gentrace(normal, (mu, 1.0), Z)
+    z = gentrace(normal, (mu, torch.tensor(1.0)), Z)
     assert isinstance(z, torch.Tensor)
     assert z.size() == (2,)
     output = gentrace(network, (z,))
     assert isinstance(output, torch.Tensor)
     assert output.size() == (4,)
-    x = gentrace(normal, (output, 1.0), X)
+    x = gentrace(normal, (output, torch.tensor(1.0)), X)
     assert isinstance(x, torch.Tensor)
     assert x.size() == (4,)
     return z
@@ -95,3 +95,54 @@ def test_update():
     assert torch.allclose(log_weight, new_trace.get_score() - trace.get_score(), atol=1e-6)
     assert torch.allclose(new_trace.get_choice_trie()[Z], z_new)
     assert torch.allclose(new_trace.get_choice_trie()[X], x)
+
+
+def check_param_gradients_unset_or_zero():
+    for param in f.get_torch_nn_module().parameters():
+        assert param.grad is None or torch.equal(param.grad, torch.zeros_like(param))
+
+
+def test_choice_gradients():
+    mu = torch.tensor([1.0, 2.0])
+    z = torch.tensor([1.1, 2.1])
+    x = torch.tensor([1.1, 1.2, 1.3, 1.4])
+    trie = MutableChoiceTrie()
+    trie[Z] = z
+    trie[X] = x
+    (trace, _) = f.generate((mu,), trie)
+    retgrad = torch.tensor([0.3, 0.4])
+
+    # compute expected_mu_grad
+    mu_proxy = mu.detach().clone().requires_grad_(True)
+    torch.autograd.backward(torch.distributions.normal.Normal(mu_proxy, 1.0).log_prob(z).sum())
+    expected_mu_grad = mu_proxy.grad
+    f.get_torch_nn_module().zero_grad()
+
+    # compute expected_z_grad
+    # NOTE: currently unused
+    z_proxy = z.detach().clone().requires_grad_(True)
+    torch.autograd.backward(
+        [torch.distributions.normal.Normal(mu, 1.0).log_prob(z_proxy).sum() +
+         torch.distributions.normal.Normal(network(z_proxy), 1.0).log_prob(x).sum(), z_proxy],
+        grad_tensors=[torch.tensor(1.0), retgrad])
+    expected_z_grad = z_proxy.grad
+    f.get_torch_nn_module().zero_grad()
+
+    # compute expected_x_grad
+    # NOTE: currently unused
+    x_proxy = x.detach().clone().requires_grad_(True)
+    torch.autograd.backward(torch.distributions.normal.Normal(network(z), 1.0).log_prob(x_proxy).sum())
+    expected_x_grad = x_proxy.grad
+    f.get_torch_nn_module().zero_grad()
+
+    # gradients wrt args only
+    (arg_grads, choice_values, choice_grads) = trace.choice_gradients(None, retgrad)
+    check_param_gradients_unset_or_zero()
+
+    assert len(arg_grads) == 1
+    mu_grad = arg_grads[0]
+    assert mu_grad.size() == mu.size()
+    assert torch.allclose(mu_grad, expected_mu_grad)
+
+    assert choice_values is None
+    assert choice_grads is None

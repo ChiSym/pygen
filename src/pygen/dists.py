@@ -15,10 +15,13 @@ class TorchDistTrace(Trace):
 
     def __init__(self, gen_fn, args, value, lpdf):
         assert isinstance(gen_fn, TorchDist)
+        assert isinstance(value, torch.Tensor)
+        assert not value.requires_grad
         self.gen_fn = gen_fn
         self.args = args
         self.value = value
         self.lpdf = lpdf
+        # TODO cache the torch.distribution.Distribution object in the trace..
 
     def get_gen_fn(self):
         return self.gen_fn
@@ -58,8 +61,25 @@ class TorchDistTrace(Trace):
     def regenerate(self, args, selection):
         raise NotImplementedError()
 
-    def choice_gradients(self, selection, retgrad):
-        raise NotImplementedError()
+    # TODO: we will also probably want to have 'inlined' distributions
+    # that don't go through this process, but instead directly add to PyTorch's
+    # dynamic computation graph
+
+    def choice_gradients(self, selection, retval_grad):
+        if selection is not None:
+            raise NotImplementedError()
+        with torch.inference_mode(mode=False):
+            value = self.value.detach()
+            args_tracked = tuple(
+                arg.detach().clone().requires_grad_(True) if isinstance(arg, torch.Tensor) else arg
+                for arg in self.get_args())
+            dist = self.gen_fn.get_dist_class()(*args_tracked)
+            lpdf = dist.log_prob(value).sum()
+            lpdf.backward(retain_graph=False)
+            arg_grads = tuple(
+                arg.grad if isinstance(arg, torch.Tensor) else None
+                for arg in args_tracked)
+        return arg_grads, None, None
 
     def accum_param_grads(self, retgrad, scale_factor):
         raise NotImplementedError()
