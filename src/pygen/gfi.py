@@ -21,6 +21,9 @@ class GenFn:
 
 class Trace:
 
+    def get_gen_fn(self):
+        raise NotImplementedError()
+
     def get_args(self):
         raise NotImplementedError()
 

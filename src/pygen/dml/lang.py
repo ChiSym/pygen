@@ -1,6 +1,6 @@
 from ..gfi import GenFn, Trace
 from ..choice_address import ChoiceAddress, addr
-from ..choice_trie import ChoiceTrie, MutableChoiceTrie, MutableChoiceTrieError
+from ..choice_trie import ChoiceTrie, MutableChoiceTrie
 from functools import wraps
 import torch
 
@@ -26,10 +26,11 @@ def _inject_variables(context, func):
 
 
 def _splice_dml_call(callee, args, gentrace):
-    if not isinstance(callee, DMLGenFn):
+    if isinstance(callee, DMLGenFn):
+        p = _inject_variables({"gentrace": gentrace}, callee.p)
+    else:
         raise RuntimeError("Address required when"
                            f" calling a non-DML generative function: {callee}")
-    p = _inject_variables({"gentrace": gentrace}, callee.p)
     return p(*args)
 
 
@@ -206,7 +207,7 @@ class DMLTrace(Trace):
             else:
                 assert isinstance(v, dict)
                 if k in new_subtraces_trie:
-                    sub_discard = _get_subtrie_or_empty(discard, k)
+                    sub_discard = discard.get_subtrie(addr(k), strict=False)
                     DMLTrace._add_unvisited_to_discard(sub_discard, v, new_subtraces_trie[v])
                 else:
                     d = MutableChoiceTrie()
