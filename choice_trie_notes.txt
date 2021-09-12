@@ -1,0 +1,33 @@
+notes on choice tries for checkpoint
+
+*denotes core interface; the rest are only supported by MutableChoiceTrie
+
+choice trie flat view -- intended for user space code
+
+- *  __getitem__(self, address_elements) returns the value
+
+-   __setitem__(self, address_elements, value) sets the choice value; always succeeds
+
+- * __iter__(self) returns an iterator over all (address, value) pairs in the trie
+
+- * hierarchical_view(self) returns a choice trie (see below); for mutable choice tries, there is mutual mutation
+
+
+choice trie (hierarchical) -- intended for language implementation code
+
+- * has_value(self) equiv. to what is currently called 'is_primitive'
+
+- * get_value(self) - return value if we are a primitive; otherwise raise exception
+
+- * get_subtrie(self, strict=False) returns the subtrie at given address; if not strict then it returns an empty choice trie (and does not mutate the choice trie)
+
+- * __getitem__(self, address) returns the subtrie at the given address; error if it does not exist. if address=addr() then returns self.
+
+- __setitem__(self, address, subtrie) sets the subtrie at the given address; always succeeds; if address=addr() then overwrites self completely.
+
+- * __iter__(self) returns an iterator over all (key, subtrie) pairs (empty iterator if it is primitive)
+
+- * flat_view(self) returns a flat view of this choice trie; for mutable choice tries, there is mutual mutation
+
+- MutableChoiceTrie.copy(other) copies a choice trie
+

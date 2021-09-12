@@ -8,24 +8,46 @@ def choice_trie():
 
 # NOTE: the first element of an address cannot be ()
 
+
 class ChoiceTrieFlatView:
     """A view of a choice trie as an associative array
     mapping addresses of random choices to values."""
 
-    def __getitem__(self, address):
-        """Return a the value of the choice at `address`."""
-        raise NotImplementedError()
+    def __init__(self, hierarchical_view):
+        assert isinstance(hierarchical_view, ChoiceTrie)
+        self.hierarchical_view = hierarchical_view
 
-    def __setitem__(self, address, value):
-        """Set the value of the choice at `address`."""
-        raise NotImplementedError()
+    def hierarchical_view(self):
+        """Return a hierarchical view of the choice trie."""
+        return self.hierarchical_view
+
+    def __getitem__(self, address_elements):
+        """Return a the value of the choice at `address`."""
+        address = addr(*address_elements)
+        subtrie = self.hierarchical_view[address]
+        return subtrie.get_value()
+
+    @staticmethod
+    def _flatten(hierarchical_view):
+        # Primitive trie.
+        if hierarchical_view.is_primitive():
+            return {(): hierarchical_view.get_value()}
+        # Compound trie.
+        d = {}
+        for k, subtrie in hierarchical_view:
+            subtrie_flat = ChoiceTrieFlatView._flatten(subtrie)
+            d_sub_prefix = {(k,) + t: v for t, v in subtrie_flat.items()}
+            d.update(d_sub_prefix)
+        return d
 
     def __iter__(self):
         """Iterate over the (address, value) pairs for all random choices."""
-        raise NotImplementedError()
+        return iter(ChoiceTrieFlatView._flatten(self.hierarchical_view).items())
 
     def __str__(self):
         return str({k: v for (k, v) in self})
+
+
 
 
 class ChoiceTrie:
@@ -70,8 +92,7 @@ class ChoiceTrie:
         raise NotImplementedError()
 
     def __iter__(self):
-        """Return an iterator over `(k, trie)` pairs that
-        satisfy `self[addr(k)] = trie`."""
+        """Return an iterator over `(k, trie)` pairs that satisfy `self[k] = trie`."""
         raise NotImplementedError()
 
 
@@ -81,40 +102,14 @@ class MutableChoiceTrieError(Exception):
 
 MCTError = MutableChoiceTrieError
 
-
 class MutableChoiceTrieFlatView(ChoiceTrieFlatView):
 
-    def __init__(self, choice_trie):
-        assert isinstance(choice_trie, MutableChoiceTrie)
-        self.choice_trie = choice_trie
-
-    def __getitem__(self, address_elements):
-        address = addr(*address_elements)
-        subtrie = self.choice_trie[address]
-        return subtrie.get_value()
-
     def __setitem__(self, address_tuple, value):
-        print(f'setitem: {address_tuple} , value: {value}')
         address = addr(*address_tuple)
-        subtrie = self.choice_trie.get(address, strict=False)
+        subtrie = self.hierarchical_view.get(address, strict=False)
         subtrie.trie = {(): value}
-        self.choice_trie[address] = subtrie
+        self.hierarchical_view[address] = subtrie
 
-    @staticmethod
-    def _flatten(choice_trie):
-        # Primitive trie.
-        if choice_trie.is_primitive():
-            return {addr(): choice_trie.trie[()]}
-        # Compound trie.
-        d = {}
-        for k, subtrie in choice_trie.trie.items():
-            subtrie_flat = MutableChoiceTrieFlatView._flatten(subtrie)
-            d_sub_prefix = {addr(k) + t: v for t, v in subtrie_flat.items()}
-            d.update(d_sub_prefix)
-        return d
-
-    def __iter__(self):
-        return iter(MutableChoiceTrieFlatView._flatten(self.choice_trie))
 
 
 class MutableChoiceTrie(ChoiceTrie):
@@ -210,7 +205,8 @@ class MutableChoiceTrie(ChoiceTrie):
 
     def __iter__(self):
         for k, subtrie in self.trie.items():
-            yield (addr(k), subtrie)
+            if k != ():
+                yield (k, subtrie)
 
     def __bool__(self):
         return bool(self.trie)
