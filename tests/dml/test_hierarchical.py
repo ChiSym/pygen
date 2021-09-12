@@ -20,11 +20,11 @@ def f(prob):
 
 
 def count_calls(trie):
-    if trie[addr('done')]:
+    if trie[addr('done')].get_value():
         return 1
     else:
-        left_trie = trie.get_subtrie(addr('left'))
-        right_trie = trie.get_subtrie(addr('right'))
+        left_trie = trie[addr('left')]
+        right_trie = trie[addr('right')]
         return 1 + count_calls(left_trie) + count_calls(right_trie)
 
 
@@ -38,11 +38,12 @@ def test_simulate():
 
 def get_initial_choice_trie():
     trie = MutableChoiceTrie()
-    trie[addr('done')] = torch_false
-    trie[addr('left', 'done')] = torch_false
-    trie[addr('right', 'done')] = torch_true
-    trie[addr('left', 'left', 'done')] = torch_true
-    trie[addr('left', 'right', 'done')] = torch_true
+    choices = trie.flat_view()
+    choices[addr('done')] = torch_false
+    choices[addr('left', 'done')] = torch_false
+    choices[addr('right', 'done')] = torch_true
+    choices[addr('left', 'left', 'done')] = torch_true
+    choices[addr('left', 'right', 'done')] = torch_true
     return (trie, 5)
 
 
@@ -64,19 +65,22 @@ def test_update():
     (trace, _) = f.generate((prob,), init)
 
     constraints = MutableChoiceTrie()
-    constraints[addr('left', 'done')] = torch_true
+    view = constraints.flat_view()
+    view[addr('left', 'done')] = torch_true
     (new_trace, log_weight, discard) = trace.update((prob,), constraints)
 
     expected_discard = MutableChoiceTrie()
-    expected_discard[addr('left', 'done')] = torch_false
-    expected_discard[addr('left', 'left', 'done')] = torch_true
-    expected_discard[addr('left', 'right', 'done')] = torch_true
+    view = expected_discard.flat_view()
+    view[addr('left', 'done')] = torch_false
+    view[addr('left', 'left', 'done')] = torch_true
+    view[addr('left', 'right', 'done')] = torch_true
     assert discard == expected_discard
 
     expected_choice_trie = MutableChoiceTrie()
-    expected_choice_trie[addr('done')] = torch_false
-    expected_choice_trie[addr('left', 'done')] = torch_true
-    expected_choice_trie[addr('right', 'done')] = torch_true
+    view = expected_choice_trie.flat_view()
+    view[addr('done')] = torch_false
+    view[addr('left', 'done')] = torch_true
+    view[addr('right', 'done')] = torch_true
     assert new_trace.get_choice_trie() == expected_choice_trie
 
     assert torch.isclose(log_weight, new_trace.get_score() - trace.get_score())

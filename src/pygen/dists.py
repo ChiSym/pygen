@@ -1,12 +1,11 @@
 from .gfi import Trace, GenFn
-from .choice_address import addr, ChoiceAddress
 from .choice_trie import ChoiceTrie, MutableChoiceTrie
 import torch
 
 def _check_is_primitive_and_get_value(choice_trie):
     if not choice_trie.is_primitive():
         raise RuntimeError(f'choice_trie is not primitive: {choice_trie}')
-    return choice_trie[addr()]
+    return choice_trie.get_value()
 
 class TorchDist(GenFn):
     pass
@@ -37,7 +36,7 @@ class TorchDistTrace(Trace):
 
     def get_choice_trie(self):
         trie = MutableChoiceTrie()
-        trie[addr()] = self.value
+        trie.set_value(self.value)
         return trie
 
     def update(self, args, choice_trie):
@@ -50,7 +49,7 @@ class TorchDistTrace(Trace):
         else:
             # choice_trie is not empty
             value = _check_is_primitive_and_get_value(choice_trie)
-            discard[addr()] = prev_value
+            discard.set_value(prev_value)
         new_dist = self.gen_fn.get_dist_class()(*args)
         new_lpdf = new_dist.log_prob(value).sum()
         prev_lpdf = self.lpdf

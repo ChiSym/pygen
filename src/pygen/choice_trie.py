@@ -21,9 +21,8 @@ class ChoiceTrieFlatView:
         """Return a hierarchical view of the choice trie."""
         return self.hierarchical_view
 
-    def __getitem__(self, address_elements):
+    def __getitem__(self, address):
         """Return a the value of the choice at `address`."""
-        address = addr(*address_elements)
         subtrie = self.hierarchical_view[address]
         return subtrie.get_value()
 
@@ -31,12 +30,12 @@ class ChoiceTrieFlatView:
     def _flatten(hierarchical_view):
         # Primitive trie.
         if hierarchical_view.is_primitive():
-            return {(): hierarchical_view.get_value()}
+            return {addr(): hierarchical_view.get_value()}
         # Compound trie.
         d = {}
         for k, subtrie in hierarchical_view:
             subtrie_flat = ChoiceTrieFlatView._flatten(subtrie)
-            d_sub_prefix = {(k,) + t: v for t, v in subtrie_flat.items()}
+            d_sub_prefix = {addr(k) + t: v for t, v in subtrie_flat.items()}
             d.update(d_sub_prefix)
         return d
 
@@ -104,8 +103,7 @@ MCTError = MutableChoiceTrieError
 
 class MutableChoiceTrieFlatView(ChoiceTrieFlatView):
 
-    def __setitem__(self, address_tuple, value):
-        address = addr(*address_tuple)
+    def __setitem__(self, address, value):
         subtrie = self.hierarchical_view.get(address, strict=False)
         subtrie.trie = {(): value}
         self.hierarchical_view[address] = subtrie
@@ -144,8 +142,8 @@ class MutableChoiceTrie(ChoiceTrie):
         else:
             for (k, other_subtrie) in other:
                 self_subtrie = self.get(addr(k), strict=False)
-                self[addr(k)] = self_subtrie
                 self_subtrie.update(other_subtrie)
+                self[addr(k)] = self_subtrie
 
     def get_shallow_choices(self):
         for k, subtrie in self:
@@ -235,9 +233,9 @@ class MutableChoiceTrie(ChoiceTrie):
             return trie
         # Compound trie.
         trie = MutableChoiceTrie()
-        for address, subtrie in x:
+        for k, subtrie in x:
             subtrie_recursive = MutableChoiceTrie.copy(subtrie)
-            trie[address] = subtrie_recursive
+            trie[addr(k)] = subtrie_recursive
             # if subtrie.is_primitive():
             #     value = subtrie.get_value()
             #     trie[address] = value # deepcopy the value?

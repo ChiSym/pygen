@@ -8,27 +8,26 @@ t = trie.flat_view()
 t = choice_trie()
 print(t.hierarchical_view)
 
-t['x'] = 1
+t[addr('x')] = 1
 print(t.hierarchical_view)
 
-t['x', 'y'] = 1
+t[addr('x', 'y')] = 1
 print(t.hierarchical_view)
 
-t['x'] = 1
+t[addr('x')] = 1
 print(t.hierarchical_view)
 
-t['x', 'y'] = 2
+t[addr('x', 'y')] = 2
 print(t.hierarchical_view)
 
 #t[] = 3 # < not supported.. instead use t.set_value(3)?
 #print(t.hierarchical_view)
 
-t['x', 'y'] = 2
-t['x', 'z'] = 3
-t[('x', 'z', 'w')] = 4
+t[addr('x', 'y')] = 2
+t[addr('x', 'z')] = 3
+t[addr('x', 'z', 'w')] = 4
 args = ('x', 'z', 'w')
-t['x', 'z', 'w'] = 4
-t[(*args,)] = 123
+t[addr(*args)] = 123
 
 print("choice trie")
 print(t.hierarchical_view)
