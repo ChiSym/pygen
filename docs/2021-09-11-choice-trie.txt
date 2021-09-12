@@ -14,6 +14,8 @@ choice trie (hierarchical) -- intended for language implementation code
 
 - * subtries(self) returns an iterator over all (key, subtrie) pairs (empty iterator if it is primitive)
 
+- * flatten(self) returns an iterator over all (address, value) pairs
+
 -  asdict(self) returns a dictionary representaiton
 
 -  set_subtrie(self, address, subtrie) sets the subtrie at the given address; always succeeds; if address=addr() then overwrites self completely.
