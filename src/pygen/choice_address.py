@@ -1,6 +1,6 @@
 class ChoiceAddress:
 
-    def __init__(self, keys):
+    def __init__(self, *keys):
         self.keys = tuple(keys)
 
     def first(self):
@@ -11,7 +11,7 @@ class ChoiceAddress:
     def rest(self):
         if not self:
             raise RuntimeError('Empty ChoiceAddress has no rest() address.')
-        return ChoiceAddress(self.keys[1:])
+        return ChoiceAddress(*self.keys[1:])
 
     def __bool__(self):
         return bool(self.keys)
@@ -22,18 +22,20 @@ class ChoiceAddress:
         return False
 
     def __repr__(self):
-        return 'ChoiceAddress(%s)' % (self.keys,)
+        x = ', '.join(repr(x) for x in self.keys)
+        return 'addr(%s)' % (x,)
 
     def __str__(self):
-        return str(self.keys)
+        return self.__repr__()
 
     def __hash__(self):
         return hash(self.keys)
 
-    def __add__(self, x):
-        if isinstance(x, type(self)):
-            return ChoiceAddress(self.keys + x.keys)
-        return NotImplemented
+addr = ChoiceAddress
 
-def addr(*args):
-    return ChoiceAddress(args)
+def addressify(x):
+    if isinstance(x, ChoiceAddress):
+        return x
+    if isinstance(x, tuple):
+        return addr(*x)
+    return addr(x)

@@ -1,0 +1,36 @@
+
+def addressify(x):
+    if isinstance(x, addr):
+        return x
+    if isinstance(x, tuple):
+        return addr(*x)
+    return addr(x)
+
+...
+    def __getitem__(self, address):
+        """Return the value of the choice at the given `address`."""
+        address = addressify(address)
+        <same as before>
+
+Organized by syntax
+
+a and ba refer to python value that is not a tuple and that is not a ChoiceAddress
+x and y refer to arbitrary python values
+t refers to a python tuple
+
+NOTE: trailing comma in index is discouraged b/c it changes semantics
+
+Syntax            Actual        Reasoning
+                  Address
+
+trie[a]           addr(a)       addressify gets `a`, returns addr(a)
+trie[a,]          addr(a)       addressify gets `(a,)`, returns addr(*(a,)) = addr(a)
+
+trie[x,y]         addr(x,y)     addressify gets `(x,y)`, returns addr(x,y)
+trie[x,y,]        addr(x,y)     addressify gets `(x,y)`, returns addr(x,y)
+
+trie[t]           addr(*t)      addressify gets `t`, returns addr(*t)
+trie[t,]          addr(t)       addressify gets `(t,)` returns addr(*(t,)) = addr(t)
+
+trie[addr(..)]    addr(..)      addressify passes through the address
+
