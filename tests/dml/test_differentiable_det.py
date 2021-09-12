@@ -60,8 +60,8 @@ def test_simulate():
     mu = torch.tensor([1.0, 2.0])
     trace = f.simulate((mu,))
     assert len(trace.get_choice_trie().asdict()) == 2
-    z = trace.get_choice_trie()[Z].get_value()
-    x = trace.get_choice_trie()[X].get_value()
+    z = trace.get_choice_trie()[Z]
+    x = trace.get_choice_trie()[X]
     assert trace.get_gen_fn() == f
     assert trace.get_args() == (mu,)
     assert torch.allclose(trace.get_retval(), z)
@@ -72,12 +72,11 @@ def test_generate():
     mu = torch.tensor([1.0, 2.0])
     x = torch.tensor([1.1, 1.2, 1.3, 1.4])
     trie = MutableChoiceTrie()
-    view = trie.flat_view()
-    view[X] = x
+    trie[X] = x
     (trace, log_weight) = f.generate((mu,), trie)
-    z = trace.get_choice_trie()[Z].get_value()
+    z = trace.get_choice_trie()[Z]
     assert len(trace.get_choice_trie().asdict()) == 2
-    assert torch.allclose(trace.get_choice_trie()[X].get_value(), x)
+    assert torch.allclose(trace.get_choice_trie()[X], x)
     assert trace.get_gen_fn() == f
     assert trace.get_args() == (mu,)
     assert torch.allclose(trace.get_retval(), z)
@@ -92,19 +91,17 @@ def test_update():
     z = torch.tensor([1.1, 2.1])
     x = torch.tensor([1.1, 1.2, 1.3, 1.4])
     trie = MutableChoiceTrie()
-    view = trie.flat_view()
-    view[Z] = z
-    view[X] = x
+    trie[Z] = z
+    trie[X] = x
     (trace, _) = f.generate((mu,), trie)
     mu_new = torch.tensor([1.1, 2.1])
     z_new = torch.tensor([1.2, 2.2])
     trie = MutableChoiceTrie()
-    view = trie.flat_view()
-    view[Z] = z_new
+    trie[Z] = z_new
     (new_trace, log_weight, discard) = trace.update((mu_new,), trie)
     assert torch.allclose(log_weight, new_trace.get_score() - trace.get_score(), atol=1e-6)
-    assert torch.allclose(new_trace.get_choice_trie()[Z].get_value(), z_new)
-    assert torch.allclose(new_trace.get_choice_trie()[X].get_value(), x)
+    assert torch.allclose(new_trace.get_choice_trie()[Z], z_new)
+    assert torch.allclose(new_trace.get_choice_trie()[X], x)
 
 
 def check_param_gradients_unset_or_zero():
@@ -117,9 +114,8 @@ def test_choice_gradients():
     z = torch.tensor([1.1, 2.1])
     x = torch.tensor([1.1, 1.2, 1.3, 1.4])
     trie = MutableChoiceTrie()
-    view = trie.flat_view()
-    view[Z] = z
-    view[X] = x
+    trie[Z] = z
+    trie[X] = x
     (trace, _) = f.generate((mu,), trie)
     retgrad = torch.tensor([0.3, 0.4])
 

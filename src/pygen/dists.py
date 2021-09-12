@@ -3,7 +3,7 @@ from .choice_trie import ChoiceTrie, MutableChoiceTrie
 import torch
 
 def _check_is_primitive_and_get_value(choice_trie):
-    if not choice_trie.is_primitive():
+    if not choice_trie.has_value():
         raise RuntimeError(f'choice_trie is not primitive: {choice_trie}')
     return choice_trie.get_value()
 

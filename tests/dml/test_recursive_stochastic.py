@@ -23,13 +23,12 @@ def g(prob):
 
 
 def check_choices(n, choices):
-    view = choices.flat_view()
     assert n == len(choices.asdict())
     for i in range(1, n):
         a = addr((DONE, i))
-        assert not view[a]
+        assert not choices[a]
     a = addr((DONE, n))
-    assert view[a]
+    assert choices[a]
 
 
 def get_expected_score(prob, n):
@@ -52,9 +51,8 @@ def test_generate():
 
     # fully constrained
     trie = MutableChoiceTrie()
-    view = trie.flat_view()
-    view[addr((DONE, 1))] = torch.tensor(0.0)
-    view[addr((DONE, 2))] = torch.tensor(1.0)
+    trie[addr((DONE, 1))] = torch.tensor(0.0)
+    trie[addr((DONE, 2))] = torch.tensor(1.0)
     (trace, log_weight) = g.generate((prob,), trie)
     assert trace.get_gen_fn() == g
     assert trace.get_args() == (prob,)
@@ -68,8 +66,7 @@ def test_generate():
 
     # not fully constrained
     trie = MutableChoiceTrie()
-    view = trie.flat_view()
-    view[addr((DONE, 1))] = torch.tensor(0.0)
+    trie[addr((DONE, 1))] = torch.tensor(0.0)
     (trace, log_weight) = g.generate((prob,), trie)
     assert trace.get_gen_fn() == g
     assert trace.get_args() == (prob,)
@@ -88,15 +85,13 @@ def test_update():
     prob = 0.4
 
     trie = MutableChoiceTrie()
-    view = trie.flat_view()
-    view[addr((DONE, 1))] = torch.tensor(1.0)
+    trie[addr((DONE, 1))] = torch.tensor(1.0)
     (trace, _) = g.generate((prob,), trie)
     new_prob = 0.45
 
     trie = MutableChoiceTrie()
-    view = trie.flat_view()
-    view[addr((DONE, 1))] = torch.tensor(0.0)
-    view[addr((DONE, 2))] = torch.tensor(1.0)
+    trie[addr((DONE, 1))] = torch.tensor(0.0)
+    trie[addr((DONE, 2))] = torch.tensor(1.0)
     (new_trace, log_weight, discard) = trace.update((new_prob,), trie)
 
     assert new_trace.get_gen_fn() == g
@@ -113,4 +108,4 @@ def test_update():
 
     assert isinstance(discard, ChoiceTrie)
     assert len(discard.asdict()) == 1
-    assert discard[addr((DONE, 1))].get_value() == torch.tensor(1.0)
+    assert discard[addr((DONE, 1))] == torch.tensor(1.0)

@@ -55,8 +55,7 @@ def test_marginal_likelihood_estimates():
     lml_true = torch.log(torch.tensor(ground_truth_marginal_likelihood(x)))
 
     observations = MutableChoiceTrie()
-    view = observations.flat_view()
-    view[X] = x
+    observations[X] = x
 
     (_, lml_estimate) = importance_resampling_custom_proposal(
         model, (), observations, exact_proposal, (x,), 100, verbose=False)

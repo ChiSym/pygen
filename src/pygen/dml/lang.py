@@ -84,7 +84,7 @@ class DMLGenFn(GenFn):
                 if address is None:
                     return _splice_dml_call(callee, callee_args, gentrace)
                 else:
-                    sub_constraints = constraints.get(address, strict=False)
+                    sub_constraints = constraints.get_subtrie(address, strict=False)
                     (subtrace, log_weight_increment) = callee.generate(callee_args, sub_constraints)
                     nonlocal log_weight
                     log_weight += log_weight_increment
@@ -196,10 +196,10 @@ class DMLTrace(Trace):
         trie = MutableChoiceTrie()
         for (k, v) in subtraces_trie.items():
             if isinstance(v, Trace):
-                trie[addr(k)] = v.get_choice_trie()
+                trie.set_subtrie(addr(k), v.get_choice_trie())
             else:
                 assert isinstance(v, dict)
-                trie[addr(k)] = DMLTrace._to_choice_trie(v)
+                trie.set_subtrie(addr(k), DMLTrace._to_choice_trie(v))
         return trie
 
     def get_choice_trie(self):
@@ -230,15 +230,15 @@ class DMLTrace(Trace):
         for (k, v) in prev_subtraces_trie.items():
             if isinstance(v, Trace):
                 if k not in new_subtraces_trie:
-                    discard[addr(k)] = v.get_choice_trie()
+                    discard.set_subtrie(addr(k),  v.get_choice_trie())
             else:
                 assert isinstance(v, dict)
                 if k in new_subtraces_trie:
-                    sub_discard = discard.get(addr(k), strict=False)
+                    sub_discard = discard.get_subtrie(addr(k), strict=False)
                 else:
                     sub_discard = MutableChoiceTrie()
                 DMLTrace._add_unvisited_to_discard(sub_discard, v, new_subtraces_trie[v])
-                discard[addr(k)] = sub_discard
+                discard.set_subtrie(addr(k), sub_discard)
 
     def _get_subtrace(self, subtraces_trie, address):
         assert isinstance(address, ChoiceAddress)
@@ -285,12 +285,12 @@ class DMLTrace(Trace):
                             raise RuntimeError(f'Generative function at address {address}'
                                                'changed from {prev_callee} to {callee}')
                         (subtrace, log_weight_increment, sub_discard) = prev_subtrace.update(
-                            callee_args, constraints.get(address, strict=False))
+                            callee_args, constraints.get_subtrie(address, strict=False))
                         if sub_discard:
-                            discard[address] = sub_discard
+                            discard.set_subtrie(address, sub_discard)
                     else:
                         (subtrace, log_weight_increment) = callee.generate(
-                            callee_args, constraints.get(address, strict=False))
+                            callee_args, constraints.get_subtrie(address, strict=False))
                     log_weight += log_weight_increment
                     new_trace._record_subtrace(subtrace, address)
                     return subtrace.get_retval()

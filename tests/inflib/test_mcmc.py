@@ -1,16 +1,17 @@
 from pygen.dml.lang import gendml
 from pygen.choice_address import addr
-from pygen.dists import bernoulli, normal
+from pygen.dists import bernoulli
 from pygen.inflib.mcmc import mh_custom_proposal
-import torch
-import timeit
+from pygen import gentrace
+
 
 @gendml
 def model():
     z = gentrace(bernoulli, (0.5,), addr("z"))
-    assert z.size() == () # a scalar
+    assert z.size() == ()  # a scalar
     x_prob = (0.3 if z else 0.4)
     x = gentrace(bernoulli, (x_prob,), addr("x"))
+
 
 def z_conditional_prob(x):
     if x:
@@ -21,26 +22,28 @@ def z_conditional_prob(x):
         z_true_prob = 0.5 * 0.7
     return z_true_prob / (z_true_prob + z_false_prob)
 
+
 @gendml
 def proposal(trace):
     x = trace.get_choice_trie()[addr("x")]
     gentrace(bernoulli, (z_conditional_prob(x),), addr("z"))
 
+
 iters = 50
+
 
 def run_it():
     trace = model.simulate(())
     for i in range(iters):
         (trace, accepted) = mh_custom_proposal(trace, proposal, ())
         assert accepted
-        z = trace.get_choice_trie()[addr("z")]
-        x = trace.get_choice_trie()[addr("x")]
-
-#number = 5
-#total = timeit.timeit(run_it, number=number)
-#rate = (number * iters) / total
-#print(f"{rate} iters per second")
+#
+# import timeit
+# number = 5
+# total = timeit.timeit(run_it, number=number)
+# rate = (number * iters) / total
+# print(f"{rate} iters per second")
 
 def test_always_accepts():
     pass
-    #run_it() # TODO
+    run_it()

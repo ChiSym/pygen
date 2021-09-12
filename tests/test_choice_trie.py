@@ -14,7 +14,7 @@ def test_trie_empty():
     for (k, subtrie) in trie:
         assert False
 
-    assert not trie.is_primitive()
+    assert not trie.has_value()
     assert trie.asdict() == {}
     assert MutableChoiceTrie.copy(trie) == trie
     assert MutableChoiceTrie.copy(trie) is not trie
@@ -22,10 +22,10 @@ def test_trie_empty():
     with pytest.raises(MutableChoiceTrieError):
         _ = trie[addr('a')]  # there is no subtrie at 'a'
     with pytest.raises(MutableChoiceTrieError):
-        _ = trie.get(addr('a'))  # there is no subtrie at 'a'
+        _ = trie.get_subtrie(addr('a'))  # there is no subtrie at 'a'
     with pytest.raises(MutableChoiceTrieError):
         _ = trie.get_value()  # there is no value
-    assert trie.get(addr('a'), strict=False) == MutableChoiceTrie()
+    assert trie.get_subtrie(addr('a'), strict=False) == MutableChoiceTrie()
     view = trie.flat_view()
     assert len(view) == 0
     with pytest.raises(MutableChoiceTrieError):
@@ -43,7 +43,7 @@ def test_trie_primitive():
     # Primitive trie.
     trie = MutableChoiceTrie(); trie.flat_view()[addr()] = 1
     assert trie.get_value() == 1
-    assert trie.is_primitive()
+    assert trie.has_value()
     assert trie.asdict() == {(): 1}
     # Copying gives an identical trie.
     assert MutableChoiceTrie.copy(trie) == trie
@@ -58,8 +58,8 @@ def test_trie_primitive():
     with pytest.raises(MutableChoiceTrieError):
         _ = trie[addr('z')]
     with pytest.raises(MutableChoiceTrieError):
-        _ = trie.get(addr('z'))
-    assert trie.get(addr('z'), strict=False) == MutableChoiceTrie()
+        _ = trie.get_subtrie(addr('z'))
+    assert trie.get_subtrie(addr('z'), strict=False) == MutableChoiceTrie()
     # Set subtrie at a non-empty address:
     trie[addr('z')] = MutableChoiceTrie()
     assert len(trie) == 1
@@ -72,7 +72,7 @@ def test_trie_single_address():
     trie = MutableChoiceTrie()
     trie[addr('a')] = 1
     assert trie[addr('a')] == trie.get_choice(addr('a')) == 1
-    assert not trie.is_primitive()
+    assert not trie.has_value()
     with pytest.raises(MutableChoiceTrieError):
         trie.get_choice(addr('b'))
     with pytest.raises(MutableChoiceTrieError):
@@ -82,7 +82,7 @@ def test_trie_single_address():
     assert trie[addr()] == trie # subtrie at empty address is the trie
     assert trie.asdict() == {'a': {(): 1}}
     subtrie = trie.get_subtrie(addr('a'))
-    assert subtrie.is_primitive()
+    assert subtrie.has_value()
     assert subtrie[addr()] == subtrie.get_choice(addr()) == 1
 
 def test_trie_set_get_empty_address():
@@ -106,9 +106,9 @@ def test_trie_tuples_as_keys():
         trie[addr(k)] = 10
         assert trie[addr(k)] == trie.get_choice(addr(k)) == 10
         assert trie.asdict() == {k: {(): 10}}
-        assert not trie.is_primitive()
+        assert not trie.has_value()
         subtrie = trie.get_subtrie(addr(k))
-        assert subtrie.is_primitive()
+        assert subtrie.has_value()
 
 def test_trie_ovewrite_primitive_primitive():
     trie = MutableChoiceTrie()
@@ -137,9 +137,9 @@ def test_trie_interactive_session_1():
     with pytest.raises(MutableChoiceTrieError):
         trie.get_choice(addr('b'))
     assert isinstance(trie[addr('b')], ChoiceTrie)
-    assert not subtrie.is_primitive()
+    assert not subtrie.has_value()
     subtrie = trie.get_subtrie(addr('b', 'c'))
-    assert subtrie.is_primitive()
+    assert subtrie.has_value()
     assert subtrie[addr()] == 3
     # Extend a compound.
     trie[addr('b', 'd')] = 14
@@ -149,7 +149,7 @@ def test_trie_interactive_session_1():
     with pytest.raises(MutableChoiceTrieError):
         trie.get_subtrie(addr('d'))
     subtrie = trie.get_subtrie(addr('b', 'd'))
-    assert subtrie.is_primitive()
+    assert subtrie.has_value()
     assert subtrie[addr()] == 14
     # Overwrite a primitive with a compound.
     trie[addr('a', 'c')] = 5
@@ -157,7 +157,7 @@ def test_trie_interactive_session_1():
         subtrie.get_choice(addr('a'))
     subtrie = trie.get_subtrie(addr('a'))
     assert subtrie == trie[addr('a')]
-    assert not subtrie.is_primitive()
+    assert not subtrie.has_value()
     assert subtrie == trie[addr('a')]
     assert subtrie[addr('c')] == 5
     # Confirm values.
@@ -174,7 +174,7 @@ def test_trie_primitive_ChoiceTrie_vs_primitive_dict():
     trie_value = {'a' : {(): 1.123}}
     trie = MutableChoiceTrie()
     trie[addr('b')] =  trie_value
-    assert trie.get_subtrie(addr('b')).is_primitive()
+    assert trie.get_subtrie(addr('b')).has_value()
     assert trie[addr('b')] == trie_value
     assert trie.get_choice(addr('b')) == trie_value
     d1 = trie.asdict()
@@ -184,7 +184,7 @@ def test_trie_primitive_ChoiceTrie_vs_primitive_dict():
     trie_value[addr('a')] = 1.123
     trie = MutableChoiceTrie()
     trie[addr('b')] = trie_value
-    assert trie.get_subtrie(addr('b')).is_primitive()
+    assert trie.get_subtrie(addr('b')).has_value()
     assert trie[addr('b')] == trie_value
     assert trie.get_choice(addr('b')) == trie_value
     assert trie.get_subtrie(addr('b'))[addr()] == trie_value

@@ -1,53 +1,4 @@
-from .choice_address import ChoiceAddress
 from .choice_address import addr
-
-
-def choice_trie():
-    trie = MutableChoiceTrie()
-    return trie.flat_view()
-
-# NOTE: the first element of an address cannot be ()
-
-
-class ChoiceTrieFlatView:
-    """A view of a choice trie as an associative array
-    mapping addresses of random choices to values."""
-
-    def __init__(self, hierarchical_view):
-        assert isinstance(hierarchical_view, ChoiceTrie)
-        self.hierarchical_view = hierarchical_view
-
-    def hierarchical_view(self):
-        """Return a hierarchical view of the choice trie."""
-        return self.hierarchical_view
-
-    def __getitem__(self, address):
-        """Return a the value of the choice at `address`."""
-        subtrie = self.hierarchical_view[address]
-        return subtrie.get_value()
-
-    @staticmethod
-    def _flatten(hierarchical_view):
-        # Primitive trie.
-        if hierarchical_view.is_primitive():
-            return {addr(): hierarchical_view.get_value()}
-        # Compound trie.
-        d = {}
-        for k, subtrie in hierarchical_view:
-            subtrie_flat = ChoiceTrieFlatView._flatten(subtrie)
-            d_sub_prefix = {addr(k) + t: v for t, v in subtrie_flat.items()}
-            d.update(d_sub_prefix)
-        return d
-
-    def __iter__(self):
-        """Iterate over the (address, value) pairs for all random choices."""
-        return iter(ChoiceTrieFlatView._flatten(self.hierarchical_view).items())
-
-    def __str__(self):
-        return str({k: v for (k, v) in self})
-
-
-
 
 class ChoiceTrie:
     """Implements a Trie (prefix tree) data structure.
@@ -57,46 +8,60 @@ class ChoiceTrie:
     The leaves (choices) in the trie are arbitrary Python values.
 
     Every trie is either (i) 'empty', (ii) 'primitive', or (iii) 'compound'.
-    A primitive trie has a choice at the empty address (`addr()`) and
-    no other internal nodes. A compound has at least one internal node
-    and no choice at the empty address.
+    A primitive trie has a value; a compound has no value but has at least one subtrie;
+    an empty trie has neither a value or any subtries.
 
     The truth value of an empty trie is `False` and the truth value of
-    a primitive or compound trie is `True` (even when there are no leaves in
-    the compound trie).
+    a primitive or compound trie is `True` (even when there are no values anywhere in the trie)
     """
 
-    # TODO: rename to has_value()
-    def is_primitive(self):
+    def has_value(self):
         """Return True if and only if this trie has exactly one choice,
         stored under the empty address `addr()`."""
         raise NotImplementedError()
 
     def get_value(self):
+        """Return the value stored under the empty address `addr()`."""
         raise NotImplementedError()
 
-    def flat_view(self):
-        """Return a `ChoiceTrieFlatView` of this choice trie."""
-        raise NotImplementedError()
-
-    def get(self, address, strict=True):
+    def get_subtrie(self, address, strict=True):
         """Return the ChoiceTrie at the given `address`.
 
         If not `strict`, then fall back to returning an empty choice trie, which
         does not share data with `self` (so mutating it afterwards will not mutate `self`).
+
+        For the empty address `addr()` return `self`.
         """
         raise NotImplementedError()
 
     def __getitem__(self, address):
-        """Return the ChoiceTrie at the given `address`.
-
-        If `address` is the empty address `addr()` then return self.
-        """
+        """Return the value of the choice at the given `address`."""
         raise NotImplementedError()
 
-    def __iter__(self):
-        """Return an iterator over `(k, trie)` pairs that satisfy `self[k] = trie`."""
+    def subtries(self):
+        """Return an iterator over `(k, trie)` pairs that satisfy `self.get_subtrie(k)= trie`,
+        excluding k `addr()` (the empty address)."""
         raise NotImplementedError()
+
+    def get_shallow_choices(self):
+        # TODO document
+        for k, subtrie in self.subtries():
+            if subtrie.has_value():
+                yield (k, subtrie.get_value())
+
+    def get_shallow_subtries(self):
+        # TODO document
+        for k, subtrie in self.subtries():
+            if not subtrie.has_value():
+                yield (k, subtrie)
+
+    def asdict(self):
+        # TODO document
+        # Primitive trie.
+        if self.has_value():
+            return {(): self.get_value()}
+        # Compound trie.
+        return {k: v.asdict() for k, v in self.subtries()}
 
 
 class MutableChoiceTrieError(Exception):
@@ -105,22 +70,13 @@ class MutableChoiceTrieError(Exception):
 
 MCTError = MutableChoiceTrieError
 
-class MutableChoiceTrieFlatView(ChoiceTrieFlatView):
-
-    def __setitem__(self, address, value):
-        """Set value of random choice at `address`."""
-        subtrie = self.hierarchical_view.get(address, strict=False)
-        subtrie.trie = {(): value}
-        self.hierarchical_view[address] = subtrie
-
-
 
 class MutableChoiceTrie(ChoiceTrie):
 
     def __init__(self):
         self.trie = {}
 
-    def is_primitive(self):
+    def has_value(self):
         b = () in self.trie
         assert not b or len(self.trie) == 1
         return b
@@ -134,42 +90,22 @@ class MutableChoiceTrie(ChoiceTrie):
     def set_value(self, value):
         self.trie = {(): value}
 
-    def flat_view(self):
-        return MutableChoiceTrieFlatView(self)
-
     def update(self, other):
         """Update this choice trie with the contents of the other; where the other takes precedence"""
         assert isinstance(other, ChoiceTrie)
         if not other:
             return
-        elif other.is_primitive() or self.is_primitive():
+        elif other.has_value() or self.has_value():
             self.trie = MutableChoiceTrie.copy(other).trie
         else:
-            for (k, other_subtrie) in other:
-                self_subtrie = self.get(addr(k), strict=False)
+            for (k, other_subtrie) in other.subtries():
+                self_subtrie = self.get_subtrie(addr(k), strict=False)
                 self_subtrie.update(other_subtrie)
-                self[addr(k)] = self_subtrie
+                self.set_subtrie(addr(k), self_subtrie)
 
-    def get_shallow_choices(self):
-        for k, subtrie in self:
-            if subtrie.is_primitive():
-                yield (k, subtrie[addr()])
-
-    def get_shallow_subtries(self):
-        for k, subtrie in self:
-            if not subtrie.is_primitive():
-                yield (k, subtrie)
-
-    def asdict(self):
-        # Primitive trie.
-        if self.is_primitive():
-            return dict(self.trie)
-        # Compound trie.
-        return {k: v.asdict() for k, v in self.trie.items()}
-
-    def get(self, address, strict=True):
+    def get_subtrie(self, address, strict=True):
         if address:
-            if self.is_primitive():
+            if self.has_value():
                 if strict:
                     raise MCTError(f'No subtrie at address {address}')
                 else:
@@ -178,7 +114,7 @@ class MutableChoiceTrie(ChoiceTrie):
                 key = address.first()
                 rest = address.rest()
                 if key in self.trie:
-                    return self.trie[key].get(rest, strict=strict)
+                    return self.trie[key].get_subtrie(rest, strict=strict)
                 else:
                     if strict:
                         raise MCTError(f'No subtrie at address {address}')
@@ -187,30 +123,38 @@ class MutableChoiceTrie(ChoiceTrie):
         else:
             return self
 
-    def __getitem__(self, address):
-        return self.get(address, strict=True)
-
-    def __setitem__(self, address, subtrie):
+    def set_subtrie(self, address, subtrie):
         """Set subtrie at address"""
         if not isinstance(subtrie, ChoiceTrie):
             raise MCTError('Can only set subtrie to a ChoiceTrie value')
         if address:
-            if self.is_primitive():
+            if self.has_value():
                 del self.trie[()]
             key = address.first()
             rest = address.rest()
             if key in self.trie:
-                self.trie[key][rest] = subtrie
+                self.trie[key].set_subtrie(rest, subtrie)
             else:
                 self.trie[key] = MutableChoiceTrie()
-                self.trie[key][rest] = subtrie
+                self.trie[key].set_subtrie(rest, subtrie)
         else:
             self.trie = MutableChoiceTrie.copy(subtrie).trie
 
-    def __iter__(self):
+    def subtries(self):
+        """Iterate over the children subtries and associated keys."""
         for k, subtrie in self.trie.items():
             if k != ():
                 yield (k, subtrie)
+
+    def __getitem__(self, address):
+        """Return a the value of the choice at `address`."""
+        return self.get_subtrie(address).get_value()
+
+    def __setitem__(self, address, value):
+        """Set value of random choice at `address`."""
+        subtrie = self.get_subtrie(address, strict=False)
+        subtrie.set_value(value)
+        self.set_subtrie(address, subtrie)
 
     def __bool__(self):
         return bool(self.trie)
@@ -233,15 +177,15 @@ class MutableChoiceTrie(ChoiceTrie):
     @staticmethod
     def copy(x):
         # Primitive trie.
-        if x.is_primitive():
+        if x.has_value():
             trie = MutableChoiceTrie()
             trie.set_value(x.get_value())
             return trie
         # Compound trie.
         trie = MutableChoiceTrie()
-        for k, subtrie in x:
+        for k, subtrie in x.subtries():
             subtrie_recursive = MutableChoiceTrie.copy(subtrie)
-            trie[addr(k)] = subtrie_recursive
+            trie.set_subtrie(addr(k), subtrie_recursive)
         return trie
 
 
