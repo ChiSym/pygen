@@ -80,7 +80,11 @@ class ChoiceTrie:
         raise NotImplementedError()
 
     def get(self, address, strict=True):
-        """Return the ChoiceTrie at the given `address`, or an empty choice trie."""
+        """Return the ChoiceTrie at the given `address`.
+
+        If not `strict`, then fall back to returning an empty choice trie, which
+        does not share data with `self` (so mutating it afterwards will not mutate `self`).
+        """
         raise NotImplementedError()
 
     def __getitem__(self, address):
@@ -104,6 +108,7 @@ MCTError = MutableChoiceTrieError
 class MutableChoiceTrieFlatView(ChoiceTrieFlatView):
 
     def __setitem__(self, address, value):
+        """Set value of random choice at `address`."""
         subtrie = self.hierarchical_view.get(address, strict=False)
         subtrie.trie = {(): value}
         self.hierarchical_view[address] = subtrie
@@ -186,6 +191,7 @@ class MutableChoiceTrie(ChoiceTrie):
         return self.get(address, strict=True)
 
     def __setitem__(self, address, subtrie):
+        """Set subtrie at address"""
         if not isinstance(subtrie, ChoiceTrie):
             raise MCTError('Can only set subtrie to a ChoiceTrie value')
         if address:
@@ -236,13 +242,8 @@ class MutableChoiceTrie(ChoiceTrie):
         for k, subtrie in x:
             subtrie_recursive = MutableChoiceTrie.copy(subtrie)
             trie[addr(k)] = subtrie_recursive
-            # if subtrie.is_primitive():
-            #     value = subtrie.get_value()
-            #     trie[address] = value # deepcopy the value?
-            # else:
-            #     subtrie_recursive = MutableChoiceTrie.copy(subtrie)
-            #     trie[address] = subtrie_recursive
         return trie
+
 
 def empty_trie_or_error(error_msg, strict):
     if strict is None or strict:
