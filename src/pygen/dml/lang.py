@@ -235,11 +235,10 @@ class DMLTrace(Trace):
                 assert isinstance(v, dict)
                 if k in new_subtraces_trie:
                     sub_discard = discard.get_subtrie(addr(k), strict=False)
-                    DMLTrace._add_unvisited_to_discard(sub_discard, v, new_subtraces_trie[v])
                 else:
-                    d = MutableChoiceTrie()
-                    DMLTrace._add_unvisited_to_discard(d, v, new_subtraces_trie[v])
-                    discard.set_subtrie(addr(k), d)
+                    sub_discard = MutableChoiceTrie()
+                DMLTrace._add_unvisited_to_discard(sub_discard, v, new_subtraces_trie[v])
+                discard.set_subtrie(addr(k), sub_discard)
 
     def _get_subtrace(self, subtraces_trie, address):
         assert isinstance(address, ChoiceAddress)

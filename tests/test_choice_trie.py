@@ -5,48 +5,67 @@ from pygen.choice_trie import ChoiceTrie
 from pygen.choice_trie import MutableChoiceTrie
 from pygen.choice_trie import MutableChoiceTrieError
 
+
 def test_trie_empty():
     # Empty trie.
     trie = MutableChoiceTrie()
+
+    # iteration
+    for (k, subtrie) in trie:
+        assert False
+
     assert not trie.is_primitive()
-    assert trie.flatten() == {}
     assert trie.asdict() == {}
     assert MutableChoiceTrie.copy(trie) == trie
     assert MutableChoiceTrie.copy(trie) is not trie
-    for address in [addr(), addr('a')]:
-        with pytest.raises(MutableChoiceTrieError):
-            trie.get_subtrie(addr('a'))
-        with pytest.raises(MutableChoiceTrieError):
-            trie.get_choice(addr('a'))
-    assert trie.get_subtrie(addr('a'), strict=False) == MutableChoiceTrie()
+    assert trie[addr()] == trie
+    with pytest.raises(MutableChoiceTrieError):
+        _ = trie[addr('a')]  # there is no subtrie at 'a'
+    with pytest.raises(MutableChoiceTrieError):
+        _ = trie.get(addr('a'))  # there is no subtrie at 'a'
+    with pytest.raises(MutableChoiceTrieError):
+        _ = trie.get_value()  # there is no value
+    assert trie.get(addr('a'), strict=False) == MutableChoiceTrie()
+    view = trie.flat_view()
+    assert len(view) == 0
+    with pytest.raises(MutableChoiceTrieError):
+        _ = view[addr('a')]
+
+
+    # overwrite
+    # other = MutableChoiceTrie(); other.flat_view()[addr('b')] = 1
+    # trie[addr('a')] = other
+    # assert trie[addr('a', 'b')].get_value() == 1
+
+
 
 def test_trie_primitive():
     # Primitive trie.
-    trie = MutableChoiceTrie()
-    trie[addr()] = 1
-    assert trie[addr()] == 1
-    assert trie.get_choice(addr()) == 1
+    trie = MutableChoiceTrie(); trie.flat_view()[addr()] = 1
+    assert trie.get_value() == 1
     assert trie.is_primitive()
     assert trie.asdict() == {(): 1}
-    # Flattening gives a single entry.
-    assert trie.flatten() == {addr(): 1}
     # Copying gives an identical trie.
     assert MutableChoiceTrie.copy(trie) == trie
     assert MutableChoiceTrie.copy(trie) is not trie
-    # Cannot write to a primitive trie.
-    with pytest.raises(MutableChoiceTrieError):
-        trie[addr('a')] = 1
-    # Can overwrite primitive trie.
-    trie[addr()] = 2
-    assert trie[addr()] == trie.get_choice(addr()) == 2
+    # Can overwrite primitive trie
+    trie.set_value(2)
+    assert trie.get_value() == 2
     assert trie.asdict() == {(): 2}
-    # Cannot get subtrie of primitive.
+    # Subtrie of primitive at empty address is the same trie
+    assert trie[addr()] == trie
+    # Cannot get subtrie of primitive at non-empty address if strict
     with pytest.raises(MutableChoiceTrieError):
-        trie.get_subtrie(addr())
-    assert trie.get_subtrie(addr(), strict=False) == MutableChoiceTrie()
-    # Cannot set subtrie of primitive.
+        _ = trie[addr('z')]
     with pytest.raises(MutableChoiceTrieError):
-        trie.set_subtrie(addr(), MutableChoiceTrie())
+        _ = trie.get(addr('z'))
+    assert trie.get(addr('z'), strict=False) == MutableChoiceTrie()
+    # Set subtrie at a non-empty address:
+    trie[addr('z')] = MutableChoiceTrie()
+    assert len(trie) == 1
+    # Set subtrie of primitive at the empty address
+    trie[addr()] = MutableChoiceTrie()
+    assert not trie
 
 def test_trie_single_address():
     # Trie with single address.
@@ -54,11 +73,13 @@ def test_trie_single_address():
     trie[addr('a')] = 1
     assert trie[addr('a')] == trie.get_choice(addr('a')) == 1
     assert not trie.is_primitive()
-    for address in [addr(), addr('b')]:
-        with pytest.raises(MutableChoiceTrieError):
-            trie[addr()]
-        with pytest.raises(MutableChoiceTrieError):
-            trie.get_choice(addr())
+    with pytest.raises(MutableChoiceTrieError):
+        trie.get_choice(addr('b'))
+    with pytest.raises(MutableChoiceTrieError):
+        trie.get_choice(addr())
+    with pytest.raises(MutableChoiceTrieError):
+        trie[addr('b')]
+    assert trie[addr()] == trie # subtrie at empty address is the trie
     assert trie.asdict() == {'a': {(): 1}}
     subtrie = trie.get_subtrie(addr('a'))
     assert subtrie.is_primitive()
@@ -66,12 +87,17 @@ def test_trie_single_address():
 
 def test_trie_set_get_empty_address():
     trie = MutableChoiceTrie()
-    trie[addr('a')] = 1
+    # get subtrie of empty trie at empty address is an error
     with pytest.raises(MutableChoiceTrieError):
         trie.get_subtrie(addr())
     assert trie.get_subtrie(addr(), strict=False) == MutableChoiceTrie()
-    with pytest.raises(MutableChoiceTrieError):
-        trie.set_subtrie(addr(), MutableChoiceTrie())
+    # get subtrie of non-empty trie at empty address returns the same trie
+    trie[addr('a')] = 1
+    assert trie.get_subtrie(addr()) == trie
+    assert trie.get_subtrie(addr(), strict=False) == trie
+    # setting subtrie at empty address sets the trie
+    trie.set_subtrie(addr(), MutableChoiceTrie())
+    assert not trie
 
 def test_trie_tuples_as_keys():
     # Trie with tuples as the keys.
