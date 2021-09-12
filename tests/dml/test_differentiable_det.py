@@ -26,10 +26,17 @@ network = ExampleTorchModule(2, 3, 4)
 Z = addr('z')
 X = addr('x')
 
+
+@gendml
+def g(mu):
+    z = gentrace(normal, (mu, torch.tensor(1.0)), addr())
+    return z
+
+
 @gendml
 def f(mu):
     assert len(mu) == 2
-    z = gentrace(normal, (mu, torch.tensor(1.0)), Z)
+    z = gentrace(g, (mu,), Z)
     assert isinstance(z, torch.Tensor)
     assert z.size() == (2,)
     output = gentrace(network, (z,))
@@ -119,7 +126,6 @@ def test_choice_gradients():
     f.get_torch_nn_module().zero_grad()
 
     # compute expected_z_grad
-    # NOTE: currently unused
     z_proxy = z.detach().clone().requires_grad_(True)
     torch.autograd.backward(
         [torch.distributions.normal.Normal(mu, 1.0).log_prob(z_proxy).sum() +
@@ -129,7 +135,6 @@ def test_choice_gradients():
     f.get_torch_nn_module().zero_grad()
 
     # compute expected_x_grad
-    # NOTE: currently unused
     x_proxy = x.detach().clone().requires_grad_(True)
     torch.autograd.backward(torch.distributions.normal.Normal(network(z), 1.0).log_prob(x_proxy).sum())
     expected_x_grad = x_proxy.grad

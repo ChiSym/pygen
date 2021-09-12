@@ -120,6 +120,7 @@ def torch_autograd_function_from_trace(trace):
             assert isinstance(retval_grad, torch.Tensor)
             assert not score_increment_grad.requires_grad
             assert not retval_grad.requires_grad
+            # NOTE: score_increment_grad is a dummy value
             arg_grads, choice_dict, grad_dict = trace.choice_gradients(None, retval_grad)
             assert isinstance(arg_grads, tuple)
             for grad in arg_grads:

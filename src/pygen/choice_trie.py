@@ -22,7 +22,7 @@ class ChoiceTrie:
         error if the trie does not have a subtrie at `address`.
 
         The optional keyword `strict` can be set to `False` to request
-        that an empty ChoicTrie is returned whenever `address` is invalid,
+        that an empty ChoiceTrie is returned whenever `address` is invalid,
         instead of throwing an error.
         """
         raise NotImplementedError()
@@ -85,7 +85,12 @@ class MutableChoiceTrie(ChoiceTrie):
         assert isinstance(address, ChoiceAddress)
         # Primitive trie.
         if self.is_primitive():
-            return empty_trie_or_error('Cannot get_subtrie of primitive MutableChoiceTrie.', strict)
+            if not address:
+                return self # TODO document this behavior
+            else:
+                return empty_trie_or_error(
+                    'Cannot get_subtrie of primitive MutableChoiceTrie at'
+                    f' address other than {addr()}.', strict)
         # Compound trie.
         if not address:
             return empty_trie_or_error('Cannot get_subtrie at empty address.', strict)
@@ -102,10 +107,23 @@ class MutableChoiceTrie(ChoiceTrie):
         assert isinstance(subtrie, ChoiceTrie)
         # Primitive trie.
         if self.is_primitive():
-            raise MCTError('Cannot set_subtrie of primitive MutableChoiceTrie.')
-        # Compound trie.
+            if address:
+                raise MCTError(
+                    'Cannot set_subtrie of primitive MutableChoiceTrie at '
+                    f'address other than {addr()}.')
+            else:
+                self.trie = MutableChoiceTrie.copy(subtrie).trie
+                return
+        # Compound or empty, empty address
         if not address:
-            raise MCTError('Cannot set_subtrie at empty address.')
+            if self:
+                # compound
+                raise MCTError('Cannot set_subtrie of compound trie at empty address.')
+            else:
+                # empty
+                self.trie = MutableChoiceTrie.copy(subtrie).trie
+                return
+        # Compound or empty, and non-empty address
         key = address.first()
         rest = address.rest()
         if not rest:
