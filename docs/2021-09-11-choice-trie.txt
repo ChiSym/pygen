@@ -4,9 +4,9 @@ notes on choice tries for checkpoint
 
 choice trie (hierarchical) -- intended for language implementation code
 
-- * has_value(self) equiv. to what is currently called 'is_primitive'
+- * has_choice(self) equiv. to what is currently called 'is_primitive'
 
-- * get_value(self) - return value if we are a primitive; otherwise raise exception
+- * get_choice(self) - return value if we are a primitive; otherwise raise exception
 
 - * get_subtrie(self, strict=False) returns the subtrie at given address; if not strict then it returns an empty choice trie (and does not mutate the choice trie)
 

@@ -15,12 +15,12 @@ class ChoiceTrie:
     a primitive or compound trie is `True` (even when there are no values anywhere in the trie)
     """
 
-    def has_value(self):
+    def has_choice(self):
         """Return True if and only if this trie has exactly one choice,
         stored under the empty address `addr()`."""
         raise NotImplementedError()
 
-    def get_value(self):
+    def get_choice(self):
         """Return the value stored under the empty address `addr()`."""
         raise NotImplementedError()
 
@@ -46,20 +46,20 @@ class ChoiceTrie:
     def get_shallow_choices(self):
         # TODO document
         for k, subtrie in self.subtries():
-            if subtrie.has_value():
-                yield (k, subtrie.get_value())
+            if subtrie.has_choice():
+                yield (k, subtrie.get_choice())
 
     def get_shallow_subtries(self):
         # TODO document
         for k, subtrie in self.subtries():
-            if not subtrie.has_value():
+            if not subtrie.has_choice():
                 yield (k, subtrie)
 
     def asdict(self):
         # TODO document
         # Primitive trie.
-        if self.has_value():
-            return {(): self.get_value()}
+        if self.has_choice():
+            return {(): self.get_choice()}
         # Compound trie.
         return {k: v.asdict() for k, v in self.subtries()}
 
@@ -76,16 +76,16 @@ class MutableChoiceTrie(ChoiceTrie):
     def __init__(self):
         self.trie = {}
 
-    def has_value(self):
+    def has_choice(self):
         b = () in self.trie
         assert not b or len(self.trie) == 1
         return b
 
-    def get_value(self):
+    def get_choice(self):
         try:
             return self.trie[()]
         except KeyError:
-            raise MCTError('Cannot get_value of a choice trie that is not primitive.')
+            raise MCTError('Cannot get_choice of a choice trie that is not primitive.')
 
     def set_value(self, value):
         self.trie = {(): value}
@@ -95,7 +95,7 @@ class MutableChoiceTrie(ChoiceTrie):
         assert isinstance(other, ChoiceTrie)
         if not other:
             return
-        elif other.has_value() or self.has_value():
+        elif other.has_choice() or self.has_choice():
             self.trie = MutableChoiceTrie.copy(other).trie
         else:
             for (k, other_subtrie) in other.subtries():
@@ -105,7 +105,7 @@ class MutableChoiceTrie(ChoiceTrie):
 
     def get_subtrie(self, address, strict=True):
         if address:
-            if self.has_value():
+            if self.has_choice():
                 if strict:
                     raise MCTError(f'No subtrie at address {address}')
                 else:
@@ -128,7 +128,7 @@ class MutableChoiceTrie(ChoiceTrie):
         if not isinstance(subtrie, ChoiceTrie):
             raise MCTError('Can only set subtrie to a ChoiceTrie value')
         if address:
-            if self.has_value():
+            if self.has_choice():
                 del self.trie[()]
             key = address.first()
             rest = address.rest()
@@ -148,7 +148,7 @@ class MutableChoiceTrie(ChoiceTrie):
 
     def __getitem__(self, address):
         """Return a the value of the choice at `address`."""
-        return self.get_subtrie(address).get_value()
+        return self.get_subtrie(address).get_choice()
 
     def __setitem__(self, address, value):
         """Set value of random choice at `address`."""
@@ -177,9 +177,9 @@ class MutableChoiceTrie(ChoiceTrie):
     @staticmethod
     def copy(x):
         # Primitive trie.
-        if x.has_value():
+        if x.has_choice():
             trie = MutableChoiceTrie()
-            trie.set_value(x.get_value())
+            trie.set_value(x.get_choice())
             return trie
         # Compound trie.
         trie = MutableChoiceTrie()
