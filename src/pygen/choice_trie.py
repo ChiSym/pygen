@@ -17,7 +17,7 @@ class ChoiceTrie:
 
     def has_choice(self):
         """Return True if and only if this trie has exactly one choice,
-        stored under the empty address `addr()`."""
+        stored under the empty address `addr()`, and zero subtries."""
         raise NotImplementedError()
 
     def get_choice(self):
@@ -39,8 +39,8 @@ class ChoiceTrie:
         raise NotImplementedError()
 
     def subtries(self):
-        """Return an iterator over `(k, trie)` pairs that satisfy `self.get_subtrie(k)= trie`,
-        excluding k `addr()` (the empty address)."""
+        """Return an iterator over `(k, trie)` pairs that satisfy
+        `self.get_subtrie(k)= trie`, excluding k `addr()` (empty address)."""
         raise NotImplementedError()
 
     def get_shallow_choices(self):
