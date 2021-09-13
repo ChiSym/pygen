@@ -108,8 +108,7 @@ class MutableChoiceTrie(ChoiceTrie):
             if self.has_choice():
                 if strict:
                     raise MCTError(f'No subtrie at address {address}')
-                else:
-                    return MutableChoiceTrie()
+                return MutableChoiceTrie()
             else:
                 key = address.first()
                 rest = address.rest()
@@ -118,8 +117,7 @@ class MutableChoiceTrie(ChoiceTrie):
                 else:
                     if strict:
                         raise MCTError(f'No subtrie at address {address}')
-                    else:
-                        return MutableChoiceTrie()
+                    return MutableChoiceTrie()
         else:
             return self
 
