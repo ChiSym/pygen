@@ -36,7 +36,7 @@ class TorchDistTrace(Trace):
 
     def get_choice_trie(self):
         trie = MutableChoiceTrie()
-        trie.set_value(self.value)
+        trie.set_choice(self.value)
         return trie
 
     def update(self, args, choice_trie):
@@ -49,7 +49,7 @@ class TorchDistTrace(Trace):
         else:
             # choice_trie is not empty
             value = _check_is_primitive_and_get_choice(choice_trie)
-            discard.set_value(prev_value)
+            discard.set_choice(prev_value)
         new_dist = self.gen_fn.get_dist_class()(*args)
         new_lpdf = new_dist.log_prob(value).sum()
         prev_lpdf = self.lpdf

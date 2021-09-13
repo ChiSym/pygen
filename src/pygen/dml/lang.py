@@ -205,7 +205,7 @@ class DMLTrace(Trace):
     def get_choice_trie(self):
         if self.empty_address_subtrace is not None:
             trie = MutableChoiceTrie()
-            trie.set_value(self.empty_address_subtrace.get_retval())
+            trie.set_choice(self.empty_address_subtrace.get_retval())
             return trie
         else:
             return DMLTrace._to_choice_trie(self.subtraces_trie)
