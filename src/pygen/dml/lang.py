@@ -1,6 +1,5 @@
 from ..gfi import GenFn, Trace
-from ..choice_address import ChoiceAddress, addr
-from ..choice_trie import ChoiceTrie, MutableChoiceTrie
+from ..choice_trie import ChoiceTrie, MutableChoiceTrie, tupleify
 from functools import wraps
 import torch
 
@@ -53,11 +52,11 @@ class DMLGenFn(GenFn):
         trace = DMLTrace(self, args)
 
         def gentrace(callee, callee_args, address=None):
-            assert (address is None) or isinstance(address, ChoiceAddress)
             if isinstance(callee, GenFn):
                 if address is None:
                     return _splice_dml_call(callee, callee_args, gentrace)
                 else:
+                    address = tupleify(address)
                     subtrace = callee.simulate(callee_args)
                     trace._record_subtrace(subtrace, address)
                     return subtrace.get_retval()
@@ -79,11 +78,11 @@ class DMLGenFn(GenFn):
         log_weight = torch.tensor(0.0)
 
         def gentrace(callee, callee_args, address=None):
-            assert (address is None) or isinstance(address, ChoiceAddress)
             if isinstance(callee, GenFn):
                 if address is None:
                     return _splice_dml_call(callee, callee_args, gentrace)
                 else:
+                    address = tupleify(address)
                     sub_constraints = constraints.get_subtrie(address, strict=False)
                     (subtrace, log_weight_increment) = callee.generate(callee_args, sub_constraints)
                     nonlocal log_weight
@@ -145,9 +144,10 @@ class DMLTrace(Trace):
 
     @staticmethod
     def _record_subtrace_in_subtraces_trie(subtraces_trie, address, subtrace, full_address):
-        assert isinstance(address, ChoiceAddress) and address
-        first = address.first()
-        rest = address.rest()
+        assert isinstance(address, tuple) and address
+        print(address)
+        first = address[0]
+        rest = address[1:]
         if not rest:
             if first in subtraces_trie:
                 raise RuntimeError(f'Address {full_address} already visited; cannot sample a choice at it')
@@ -157,12 +157,12 @@ class DMLTrace(Trace):
                 subtraces_trie[first] = {}
             DMLTrace._record_subtrace_in_subtraces_trie(subtraces_trie[first], rest, subtrace, full_address)
 
-    def _record_subtrace(self, subtrace, addr):
+    def _record_subtrace(self, subtrace, address):
         assert isinstance(subtrace, Trace)
-        assert isinstance(addr, ChoiceAddress)
+        assert isinstance(address, tuple)
         value = subtrace.get_retval()
         assert not value.requires_grad
-        if not addr:
+        if not address:
             if (self.empty_address_subtrace is not None) or self.subtraces_trie:
                 raise RuntimeError('the empty address may be visited at most once, and must be the only'
                                    f' address visited, but address {next(iter(self.subtraces_trie))}'
@@ -171,9 +171,9 @@ class DMLTrace(Trace):
         else:
             if self.empty_address_subtrace is not None:
                 raise RuntimeError('the empty address may be visited at most once,'
-                                   f' and must be the only address visited, but address {addr}'
+                                   f' and must be the only address visited, but address {address}'
                                    'was also visited')
-            DMLTrace._record_subtrace_in_subtraces_trie(self.subtraces_trie, addr, subtrace, addr)
+            DMLTrace._record_subtrace_in_subtraces_trie(self.subtraces_trie, address, subtrace, address)
         score_increment = subtrace.get_score()
         self.score += score_increment
 
@@ -196,10 +196,10 @@ class DMLTrace(Trace):
         trie = MutableChoiceTrie()
         for (k, v) in subtraces_trie.items():
             if isinstance(v, Trace):
-                trie.set_subtrie(addr(k), v.get_choice_trie())
+                trie.set_subtrie((k,), v.get_choice_trie())
             else:
                 assert isinstance(v, dict)
-                trie.set_subtrie(addr(k), DMLTrace._to_choice_trie(v))
+                trie.set_subtrie((k,), DMLTrace._to_choice_trie(v))
         return trie
 
     def get_choice_trie(self):
@@ -230,22 +230,22 @@ class DMLTrace(Trace):
         for (k, v) in prev_subtraces_trie.items():
             if isinstance(v, Trace):
                 if k not in new_subtraces_trie:
-                    discard.set_subtrie(addr(k),  v.get_choice_trie())
+                    discard.set_subtrie(k,  v.get_choice_trie())
             else:
                 assert isinstance(v, dict)
                 if k in new_subtraces_trie:
-                    sub_discard = discard.get_subtrie(addr(k), strict=False)
+                    sub_discard = discard.get_subtrie(k, strict=False)
                 else:
                     sub_discard = MutableChoiceTrie()
                 DMLTrace._add_unvisited_to_discard(sub_discard, v, new_subtraces_trie[v])
-                discard.set_subtrie(addr(k), sub_discard)
+                discard.set_subtrie(k, sub_discard)
 
     def _get_subtrace(self, subtraces_trie, address):
-        assert isinstance(address, ChoiceAddress)
+        assert isinstance(address, tuple)
         if address:
             # non-empty address
-            first = address.first()
-            rest = address.rest()
+            first = address[0]
+            rest = address[1:]
             if first in subtraces_trie:
                 if rest:
                     trie = subtraces_trie[first]
@@ -273,11 +273,11 @@ class DMLTrace(Trace):
         log_weight = torch.tensor(0.0, requires_grad=False)
 
         def gentrace(callee, callee_args, address=None):
-            assert (address is None) or isinstance(address, ChoiceAddress)
             if isinstance(callee, GenFn):
                 if address is None:
                     return _splice_dml_call(callee, callee_args, gentrace)
                 else:
+                    address = tupleify(address)
                     nonlocal log_weight
                     prev_subtrace = self._get_subtrace(self.subtraces_trie, address)
                     if prev_subtrace:
@@ -324,6 +324,7 @@ class DMLTrace(Trace):
                     if address is None:
                         return _splice_dml_call(callee, callee_args, gentrace)
                     else:
+                        address = tupleify(address)
                         for arg in callee_args:
                             if not isinstance(arg, torch.Tensor):
                                 raise NotImplementedError("Only Tensor arguments are currently supported")

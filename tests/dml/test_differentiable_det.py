@@ -1,6 +1,5 @@
 from pygen.dml.lang import gendml
 from pygen.dists import bernoulli, normal
-from pygen.choice_address import addr
 from pygen.choice_trie import MutableChoiceTrie
 from pygen import gentrace
 import torch
@@ -23,13 +22,13 @@ class ExampleTorchModule(nn.Module):
 network = ExampleTorchModule(2, 3, 4)
 
 
-Z = addr('z')
-X = addr('x')
+Z = 'z'
+X = 'x'
 
 
 @gendml
 def g(mu):
-    z = gentrace(normal, (mu, torch.tensor(1.0)), addr())
+    z = gentrace(normal, (mu, torch.tensor(1.0)), ())
     return z
 
 

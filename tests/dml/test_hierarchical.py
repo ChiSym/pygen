@@ -1,4 +1,3 @@
-from pygen.choice_address import addr
 from pygen.choice_trie import MutableChoiceTrie
 from pygen.dml.lang import gendml
 from pygen.dists import bernoulli
@@ -11,20 +10,20 @@ torch_true = torch.tensor(1.0)
 
 @gendml
 def f(prob):
-    if gentrace(bernoulli, (prob,), addr('done')):
+    if gentrace(bernoulli, (prob,), 'done'):
         return torch.tensor(1)
     else:
-        left_result = gentrace(f, (prob,), addr('left'))
-        right_result = gentrace(f, (prob,), addr('right'))
+        left_result = gentrace(f, (prob,), 'left')
+        right_result = gentrace(f, (prob,),'right')
         return left_result + right_result + torch.tensor(1)
 
 
 def count_calls(trie):
-    if trie[addr('done')]:
+    if trie['done']:
         return 1
     else:
-        left_trie = trie.get_subtrie(addr('left'))
-        right_trie = trie.get_subtrie(addr('right'))
+        left_trie = trie.get_subtrie('left')
+        right_trie = trie.get_subtrie('right')
         return 1 + count_calls(left_trie) + count_calls(right_trie)
 
 
@@ -38,11 +37,11 @@ def test_simulate():
 
 def get_initial_choice_trie():
     trie = MutableChoiceTrie()
-    trie[addr('done')] = torch_false
-    trie[addr('left', 'done')] = torch_false
-    trie[addr('right', 'done')] = torch_true
-    trie[addr('left', 'left', 'done')] = torch_true
-    trie[addr('left', 'right', 'done')] = torch_true
+    trie['done'] = torch_false
+    trie['left', 'done'] = torch_false
+    trie['right', 'done'] = torch_true
+    trie['left', 'left', 'done'] = torch_true
+    trie['left', 'right', 'done'] = torch_true
     return (trie, 5)
 
 
@@ -64,19 +63,19 @@ def test_update():
     (trace, _) = f.generate((prob,), init)
 
     constraints = MutableChoiceTrie()
-    constraints[addr('left', 'done')] = torch_true
+    constraints[('left', 'done')] = torch_true
     (new_trace, log_weight, discard) = trace.update((prob,), constraints)
 
     expected_discard = MutableChoiceTrie()
-    expected_discard[addr('left', 'done')] = torch_false
-    expected_discard[addr('left', 'left', 'done')] = torch_true
-    expected_discard[addr('left', 'right', 'done')] = torch_true
+    expected_discard[('left', 'done')] = torch_false
+    expected_discard[('left', 'left', 'done')] = torch_true
+    expected_discard[('left', 'right', 'done')] = torch_true
     assert discard == expected_discard
 
     expected_choice_trie = MutableChoiceTrie()
-    expected_choice_trie[addr('done')] = torch_false
-    expected_choice_trie[addr('left', 'done')] = torch_true
-    expected_choice_trie[addr('right', 'done')] = torch_true
+    expected_choice_trie[('done')] = torch_false
+    expected_choice_trie[('left', 'done')] = torch_true
+    expected_choice_trie[('right', 'done')] = torch_true
     assert new_trace.get_choice_trie() == expected_choice_trie
 
     assert torch.isclose(log_weight, new_trace.get_score() - trace.get_score())

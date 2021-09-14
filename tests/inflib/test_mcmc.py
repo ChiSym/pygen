@@ -1,5 +1,4 @@
 from pygen.dml.lang import gendml
-from pygen.choice_address import addr
 from pygen.dists import bernoulli
 from pygen.inflib.mcmc import mh_custom_proposal
 from pygen import gentrace
@@ -7,10 +6,10 @@ from pygen import gentrace
 
 @gendml
 def model():
-    z = gentrace(bernoulli, (0.5,), addr("z"))
+    z = gentrace(bernoulli, (0.5,), "z")
     assert z.size() == ()  # a scalar
     x_prob = (0.3 if z else 0.4)
-    x = gentrace(bernoulli, (x_prob,), addr("x"))
+    x = gentrace(bernoulli, (x_prob,), "x")
 
 
 def z_conditional_prob(x):
@@ -25,8 +24,8 @@ def z_conditional_prob(x):
 
 @gendml
 def proposal(trace):
-    x = trace.get_choice_trie()[addr("x")]
-    gentrace(bernoulli, (z_conditional_prob(x),), addr("z"))
+    x = trace.get_choice_trie()["x"]
+    gentrace(bernoulli, (z_conditional_prob(x),), "z")
 
 
 iters = 50

@@ -1,5 +1,4 @@
 from pygen.choice_trie import MutableChoiceTrie
-from pygen.choice_address import addr
 from pygen.dml.lang import gendml
 from pygen.dists import bernoulli
 from pygen.inflib.importance import importance_sampling_custom_proposal
@@ -7,8 +6,8 @@ from pygen.inflib.importance import importance_resampling_custom_proposal
 from pygen import gentrace
 import torch
 
-Z = addr('z')
-X = addr('x')
+Z = 'z'
+X = 'x'
 
 
 @gendml

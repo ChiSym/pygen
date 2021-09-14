@@ -1,6 +1,5 @@
 from pygen.dml.lang import gendml
 from pygen.dists import bernoulli
-from pygen.choice_address import addr
 from pygen.choice_trie import ChoiceTrie, MutableChoiceTrie
 from pygen import gentrace
 import torch
@@ -10,7 +9,7 @@ DONE = 'done'
 
 @gendml
 def f(prob, i):
-    done = gentrace(bernoulli, (prob,), addr((DONE, i)))
+    done = gentrace(bernoulli, (prob,), ((DONE, i),))
     if done:
         return i
     else:
@@ -25,9 +24,9 @@ def g(prob):
 def check_choices(n, choices):
     assert n == len(choices.asdict())
     for i in range(1, n):
-        a = addr((DONE, i))
+        a = ((DONE, i),)
         assert not choices[a]
-    a = addr((DONE, n))
+    a = ((DONE, n),)
     assert choices[a]
 
 
@@ -42,6 +41,7 @@ def test_simulate():
     assert trace.get_args() == (prob,)
     n = trace.get_retval()
     choices = trace.get_choice_trie()
+    print(choices.asdict())
     assert torch.isclose(trace.get_score(), get_expected_score(prob, n))
     check_choices(n, choices)
 
@@ -51,8 +51,8 @@ def test_generate():
 
     # fully constrained
     trie = MutableChoiceTrie()
-    trie[addr((DONE, 1))] = torch.tensor(0.0)
-    trie[addr((DONE, 2))] = torch.tensor(1.0)
+    trie[(DONE, 1),] = torch.tensor(0.0)
+    trie[(DONE, 2),] = torch.tensor(1.0)
     (trace, log_weight) = g.generate((prob,), trie)
     assert trace.get_gen_fn() == g
     assert trace.get_args() == (prob,)
@@ -66,7 +66,7 @@ def test_generate():
 
     # not fully constrained
     trie = MutableChoiceTrie()
-    trie[addr((DONE, 1))] = torch.tensor(0.0)
+    trie[((DONE, 1),)] = torch.tensor(0.0)
     (trace, log_weight) = g.generate((prob,), trie)
     assert trace.get_gen_fn() == g
     assert trace.get_args() == (prob,)
@@ -85,13 +85,13 @@ def test_update():
     prob = 0.4
 
     trie = MutableChoiceTrie()
-    trie[addr((DONE, 1))] = torch.tensor(1.0)
+    trie[((DONE, 1),)] = torch.tensor(1.0)
     (trace, _) = g.generate((prob,), trie)
     new_prob = 0.45
 
     trie = MutableChoiceTrie()
-    trie[addr((DONE, 1))] = torch.tensor(0.0)
-    trie[addr((DONE, 2))] = torch.tensor(1.0)
+    trie[((DONE, 1),)] = torch.tensor(0.0)
+    trie[((DONE, 2),)] = torch.tensor(1.0)
     (new_trace, log_weight, discard) = trace.update((new_prob,), trie)
 
     assert new_trace.get_gen_fn() == g
@@ -108,4 +108,4 @@ def test_update():
 
     assert isinstance(discard, ChoiceTrie)
     assert len(discard.asdict()) == 1
-    assert discard[addr((DONE, 1))] == torch.tensor(1.0)
+    assert discard[((DONE, 1),)] == torch.tensor(1.0)

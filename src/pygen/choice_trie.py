@@ -1,10 +1,8 @@
-from .choice_address import addr
-
 class ChoiceTrie:
     """Implements a Trie (prefix tree) data structure.
     https://en.wikipedia.org/wiki/Trie
 
-    The keys in the trie tree are instances of ChoiceAddress.
+    A path in the trie is specified by a Python tuple.
     The leaves (choices) in the trie are arbitrary Python values.
 
     Every trie is either (i) 'empty', (ii) 'primitive', or (iii) 'compound'.
@@ -54,7 +52,7 @@ class ChoiceTrie:
         if self.has_choice():
             return {(): self.get_choice()}
         # Compound.
-        return {k.first(): v.asdict() for k, v in self.subtries()}
+        return {k[0]: v.asdict() for k, v in self.subtries()}
 
 
 class MutableChoiceTrieError(Exception):
@@ -62,6 +60,7 @@ class MutableChoiceTrieError(Exception):
 
 MCTError = MutableChoiceTrieError
 
+tupleify = lambda x: x if isinstance(x, tuple) else (x,)
 
 class MutableChoiceTrie(ChoiceTrie):
 
@@ -103,8 +102,9 @@ class MutableChoiceTrie(ChoiceTrie):
                 raise MCTError(f'No subtrie at address {address}')
             return MutableChoiceTrie()
         # Compound.
-        key = address.first()
-        rest = address.rest()
+        address = tupleify(address)
+        key = address[0]
+        rest = address[1:]
         if key in self.trie:
             return self.trie[key].get_subtrie(rest, strict=strict)
         if strict is None or strict:
@@ -117,20 +117,20 @@ class MutableChoiceTrie(ChoiceTrie):
     def subtries(self):
         if not self.has_choice():
             for k, subtrie in self.trie.items():
-                # Return addr(k) for now, until
+                # Return (k,) for now, until
                 # there exists syntactic sugar
                 # for handling non-addr keys
                 # in the API.
-                yield (addr(k), subtrie)
+                yield ((k,), subtrie)
 
     def choices(self):
         if self.has_choice():
-            yield (addr(), self.get_choice())
+            yield ((), self.get_choice())
         for address, subtrie in self.subtries():
             for subaddress, choice in subtrie.choices():
                 # TODO: Make API for adding addresses.
-                path = address.keys + subaddress.keys
-                yield addr(*path), choice
+                path = address + subaddress
+                yield path, choice
 
     def __bool__(self):
         return bool(self.trie)
@@ -151,8 +151,9 @@ class MutableChoiceTrie(ChoiceTrie):
         # Modifying subtrie.
         if self.has_choice():
             del self.trie[()]
-        key = address.first()
-        rest = address.rest()
+        address = tupleify(address)
+        key = address[0]
+        rest = address[1:]
         if key not in self.trie:
             self.trie[key] = MutableChoiceTrie()
         self.trie[key].set_subtrie(rest, subtrie)
