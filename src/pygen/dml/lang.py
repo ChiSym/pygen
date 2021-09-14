@@ -1,7 +1,7 @@
 from ..gfi import GenFn, Trace
 from ..choice_address import ChoiceAddress
 from ..choice_trie import ChoiceTrie, MutableChoiceTrie
-from ..gradients import unroll_torch_tensors
+import pygen.gradients as gradients
 
 from functools import wraps
 import torch
@@ -295,7 +295,6 @@ class DMLTrace(Trace):
         # does the user need a way of declaring which inputs support AD?
         # or not.. (allow_unused)
 
-
         if selection is not None:
             raise NotImplementedError() # TODO add support for gradients wrt choices.
         with torch.inference_mode(mode=False):
@@ -326,20 +325,23 @@ class DMLTrace(Trace):
                 raise RuntimeError(f'Unknown type of generative function: {callee}')
 
             p = _inject_variables({'gentrace': gentrace}, self.gen_fn.p)
-            args_tracked = tuple(
-                arg.detach().clone().requires_grad_(True) if isinstance(arg, torch.Tensor) else arg
-                for arg in self.get_args())
+
+            args = self.get_args()
+            args_tracked = gradients.track(args)
             retval = p(*args_tracked)
 
+            inputs = gradients.unroll_torch_tensors(args_tracked)
             if score.requires_grad:
-                outputs = (score, *unroll_torch_tensors(retval))
-                grad_outputs = (torch.tensor(1.0), *unroll_torch_tensors(retval_grad))
+                outputs = (score, *gradients.unroll_torch_tensors(retval))
+                grad_outputs = (torch.tensor(1.0), *gradients.unroll_torch_tensors(retval_grad))
             else:
-                outputs = unroll_torch_tensors(retval)
-                grad_outputs = unroll_torch_tensors(retval_grad)
-            arg_grads = torch.autograd.grad(
-                outputs, args_tracked, grad_outputs=grad_outputs,
+                outputs = gradients.unroll_torch_tensors(retval)
+                grad_outputs = gradients.unroll_torch_tensors(retval_grad)
+            input_grads = torch.autograd.grad(
+                outputs, inputs,
+                grad_outputs=grad_outputs,
                 allow_unused=True)
+            arg_grads = gradients.roll_torch_tensors(args, input_grads)
 
         return arg_grads, None, None
 
