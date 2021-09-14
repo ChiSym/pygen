@@ -85,6 +85,3 @@ def test_update():
     assert round_trip_trace.get_choice_trie() == trace.get_choice_trie()
     assert round_trip_discard == constraints
     assert torch.isclose(negative_log_weight, -log_weight)
-
-
-test_generate()
