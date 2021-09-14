@@ -27,10 +27,10 @@ def _inject_variables(context, func):
 
 def _splice_dml_call(callee, args, gentrace):
     if isinstance(callee, DMLGenFn):
-        p = _inject_variables({"gentrace": gentrace}, callee.p)
+        p = _inject_variables({'gentrace': gentrace}, callee.p)
     else:
-        raise RuntimeError("Address required when"
-                           f" calling a non-DML generative function: {callee}")
+        raise RuntimeError('Address required when'
+                           f' calling a non-DML generative function: {callee}')
     return p(*args)
 
 
@@ -65,10 +65,10 @@ class DMLGenFn(GenFn):
                 self._record_torch_nn_module(callee)
                 return callee(*callee_args)
             else:
-                raise RuntimeError("Unknown type of generative function:"
-                                   f" {callee}")
+                raise RuntimeError('Unknown type of generative function:'
+                                   f' {callee}')
 
-        p = _inject_variables({"gentrace": gentrace}, self.p)
+        p = _inject_variables({'gentrace': gentrace}, self.p)
         with torch.inference_mode(mode=True):
             trace.retval = p(*args)
         return trace
@@ -294,7 +294,7 @@ class DMLTrace(Trace):
             raise RuntimeError('Unknown type of generative function:'
                                    f' {callee}')
 
-        p = _inject_variables({"gentrace": gentrace}, self.get_gen_fn().p)
+        p = _inject_variables({'gentrace': gentrace}, self.get_gen_fn().p)
         with torch.inference_mode(mode=True):
             new_trace.retval = p(*args)
 
@@ -318,7 +318,7 @@ class DMLTrace(Trace):
                         return _splice_dml_call(callee, callee_args, gentrace)
                     for arg in callee_args:
                         if not isinstance(arg, torch.Tensor):
-                            raise NotImplementedError("Only Tensor arguments are currently supported")
+                            raise NotImplementedError('Only Tensor arguments are currently supported')
                     with torch.inference_mode(mode=True):
                         prev_subtrace = self._get_subtrace(self.subtraces_trie, address)
                         torch_autograd_function = torch_autograd_function_from_trace(prev_subtrace)
@@ -326,15 +326,15 @@ class DMLTrace(Trace):
                     nonlocal score
                     score += score_increment
                     if not isinstance(callee_retval, torch.Tensor):
-                        raise NotImplementedError("Only a single Tensor return value is currently")
+                        raise NotImplementedError('Only a single Tensor return value is currently')
                     return callee_retval
                 if isinstance(callee, torch.nn.Module):
                     for param in callee.parameters():
                         param.requires_grad_(False)
                     return callee(*callee_args)
-                raise RuntimeError("Unknown type of generative function: {callee}")
+                raise RuntimeError('Unknown type of generative function: {callee}')
 
-            p = _inject_variables({"gentrace" : gentrace}, self.gen_fn.p)
+            p = _inject_variables({'gentrace' : gentrace}, self.gen_fn.p)
             args_tracked = tuple(
                 arg.detach().clone().requires_grad_(True) if isinstance(arg, torch.Tensor) else arg
                 for arg in self.get_args())
