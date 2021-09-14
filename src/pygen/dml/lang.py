@@ -83,18 +83,16 @@ class DMLGenFn(GenFn):
             if isinstance(callee, GenFn):
                 if address is None:
                     return _splice_dml_call(callee, callee_args, gentrace)
-                else:
-                    sub_constraints = constraints.get_subtrie(address, strict=False)
-                    (subtrace, log_weight_increment) = callee.generate(callee_args, sub_constraints)
-                    nonlocal log_weight
-                    log_weight += log_weight_increment
-                    trace._record_subtrace(subtrace, address)
-                    return subtrace.get_retval()
-            elif isinstance(callee, torch.nn.Module):
+                sub_constraints = constraints.get_subtrie(address, strict=False)
+                (subtrace, log_weight_increment) = callee.generate(callee_args, sub_constraints)
+                nonlocal log_weight
+                log_weight += log_weight_increment
+                trace._record_subtrace(subtrace, address)
+                return subtrace.get_retval()
+            if isinstance(callee, torch.nn.Module):
                 self._record_torch_nn_module(callee)
                 return callee(*callee_args)
-            else:
-                raise RuntimeError(f'Unknown type of generative function: {callee}')
+            raise RuntimeError(f'Unknown type of generative function: {callee}')
 
         p = _inject_variables({'gentrace': gentrace}, self.p)
         with torch.inference_mode(mode=True):
@@ -242,30 +240,27 @@ class DMLTrace(Trace):
 
     def _get_subtrace(self, subtraces_trie, address):
         assert isinstance(address, ChoiceAddress)
-        if address:
-            # non-empty address
-            first = address.first()
-            rest = address.rest()
-            if first in subtraces_trie:
-                if rest:
-                    trie = subtraces_trie[first]
-                    if not isinstance(trie, dict):
-                        # there was previously a subtrace at this address, but now there is a subtrace at a
-                        # an extension of this address
-                        return None
-                    return self._get_subtrace(subtraces_trie[first], rest)
-                else:
-                    subtrace = subtraces_trie[first]
-                    if not isinstance(subtrace, Trace):
-                        # there was previously a subtrace at an extension of this address, but now there this a
-                        # subtrace at this address
-                        return None
-                    return subtrace
-            else:
-                return None
-        else:
-            # empty address
+        # empty address.
+        if not address:
             return self.empty_address_subtrace
+        # non-empty address
+        first = address.first()
+        rest = address.rest()
+        if first not in subtraces_trie:
+            return None
+        if rest:
+            trie = subtraces_trie[first]
+            if not isinstance(trie, dict):
+                # there was previously a subtrace at this address, but now there is a subtrace at a
+                # an extension of this address
+                return None
+            return self._get_subtrace(subtraces_trie[first], rest)
+        subtrace = subtraces_trie[first]
+        if not isinstance(subtrace, Trace):
+            # there was previously a subtrace at an extension of this address, but now there this a
+            # subtrace at this address
+            return None
+        return subtrace
 
     def update(self, args, constraints):
         new_trace = DMLTrace(self.get_gen_fn(), args)
@@ -277,28 +272,26 @@ class DMLTrace(Trace):
             if isinstance(callee, GenFn):
                 if address is None:
                     return _splice_dml_call(callee, callee_args, gentrace)
+                nonlocal log_weight
+                prev_subtrace = self._get_subtrace(self.subtraces_trie, address)
+                if prev_subtrace:
+                    if prev_subtrace.get_gen_fn() != callee:
+                        raise RuntimeError(f'Generative function at address {address}'
+                                           'changed from {prev_callee} to {callee}')
+                    (subtrace, log_weight_increment, sub_discard) = prev_subtrace.update(
+                        callee_args, constraints.get_subtrie(address, strict=False))
+                    if sub_discard:
+                        discard.set_subtrie(address, sub_discard)
                 else:
-                    nonlocal log_weight
-                    prev_subtrace = self._get_subtrace(self.subtraces_trie, address)
-                    if prev_subtrace:
-                        if prev_subtrace.get_gen_fn() != callee:
-                            raise RuntimeError(f'Generative function at address {address}'
-                                               'changed from {prev_callee} to {callee}')
-                        (subtrace, log_weight_increment, sub_discard) = prev_subtrace.update(
-                            callee_args, constraints.get_subtrie(address, strict=False))
-                        if sub_discard:
-                            discard.set_subtrie(address, sub_discard)
-                    else:
-                        (subtrace, log_weight_increment) = callee.generate(
-                            callee_args, constraints.get_subtrie(address, strict=False))
-                    log_weight += log_weight_increment
-                    new_trace._record_subtrace(subtrace, address)
-                    return subtrace.get_retval()
-            elif isinstance(callee, torch.nn.Module):
+                    (subtrace, log_weight_increment) = callee.generate(
+                        callee_args, constraints.get_subtrie(address, strict=False))
+                log_weight += log_weight_increment
+                new_trace._record_subtrace(subtrace, address)
+                return subtrace.get_retval()
+            if isinstance(callee, torch.nn.Module):
                 self.get_gen_fn()._record_torch_nn_module(callee)
                 return callee(*callee_args)
-            else:
-                raise RuntimeError('Unknown type of generative function:'
+            raise RuntimeError('Unknown type of generative function:'
                                    f' {callee}')
 
         p = _inject_variables({"gentrace": gentrace}, self.get_gen_fn().p)
@@ -323,25 +316,23 @@ class DMLTrace(Trace):
                 if isinstance(callee, GenFn):
                     if address is None:
                         return _splice_dml_call(callee, callee_args, gentrace)
-                    else:
-                        for arg in callee_args:
-                            if not isinstance(arg, torch.Tensor):
-                                raise NotImplementedError("Only Tensor arguments are currently supported")
-                        with torch.inference_mode(mode=True):
-                            prev_subtrace = self._get_subtrace(self.subtraces_trie, address)
-                            torch_autograd_function = torch_autograd_function_from_trace(prev_subtrace)
-                        (score_increment, callee_retval) = torch_autograd_function(*callee_args)
-                        nonlocal score
-                        score += score_increment
-                        if not isinstance(callee_retval, torch.Tensor):
-                            raise NotImplementedError("Only a single Tensor return value is currently")
-                        return callee_retval
-                elif isinstance(callee, torch.nn.Module):
+                    for arg in callee_args:
+                        if not isinstance(arg, torch.Tensor):
+                            raise NotImplementedError("Only Tensor arguments are currently supported")
+                    with torch.inference_mode(mode=True):
+                        prev_subtrace = self._get_subtrace(self.subtraces_trie, address)
+                        torch_autograd_function = torch_autograd_function_from_trace(prev_subtrace)
+                    (score_increment, callee_retval) = torch_autograd_function(*callee_args)
+                    nonlocal score
+                    score += score_increment
+                    if not isinstance(callee_retval, torch.Tensor):
+                        raise NotImplementedError("Only a single Tensor return value is currently")
+                    return callee_retval
+                if isinstance(callee, torch.nn.Module):
                     for param in callee.parameters():
                         param.requires_grad_(False)
                     return callee(*callee_args)
-                else:
-                    raise RuntimeError("Unknown type of generative function: {callee}")
+                raise RuntimeError("Unknown type of generative function: {callee}")
 
             p = _inject_variables({"gentrace" : gentrace}, self.gen_fn.p)
             args_tracked = tuple(
