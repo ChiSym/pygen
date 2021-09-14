@@ -1,6 +1,8 @@
 from ..gfi import GenFn, Trace
 from ..choice_address import ChoiceAddress
 from ..choice_trie import ChoiceTrie, MutableChoiceTrie
+from ..gradients import unroll_torch_tensors
+
 from functools import wraps
 import torch
 
@@ -284,6 +286,16 @@ class DMLTrace(Trace):
         raise NotImplementedError()
 
     def choice_gradients(self, selection, retval_grad):
+        # NOTE: retval_grad is either None or is a torch.Tensor
+        # arguments are either Tensors, or are not tracked
+        # step 1:
+        # support case when retval and args are Python lists...
+        # ' If an output doesn’t require_grad, then the gradient can be None'
+
+        # does the user need a way of declaring which inputs support AD?
+        # or not.. (allow_unused)
+
+
         if selection is not None:
             raise NotImplementedError() # TODO add support for gradients wrt choices.
         with torch.inference_mode(mode=False):
@@ -313,15 +325,21 @@ class DMLTrace(Trace):
                     return callee(*callee_args)
                 raise RuntimeError(f'Unknown type of generative function: {callee}')
 
-            p = _inject_variables({'gentrace' : gentrace}, self.gen_fn.p)
+            p = _inject_variables({'gentrace': gentrace}, self.gen_fn.p)
             args_tracked = tuple(
                 arg.detach().clone().requires_grad_(True) if isinstance(arg, torch.Tensor) else arg
                 for arg in self.get_args())
             retval = p(*args_tracked)
 
+            if score.requires_grad:
+                outputs = (score, *unroll_torch_tensors(retval))
+                grad_outputs = (torch.tensor(1.0), *unroll_torch_tensors(retval_grad))
+            else:
+                outputs = unroll_torch_tensors(retval)
+                grad_outputs = unroll_torch_tensors(retval_grad)
             arg_grads = torch.autograd.grad(
-                (score, retval), args_tracked,
-                grad_outputs=(torch.tensor(1.0), retval_grad))
+                outputs, args_tracked, grad_outputs=grad_outputs,
+                allow_unused=True)
 
         return arg_grads, None, None
 
