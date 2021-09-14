@@ -1,5 +1,5 @@
 from ..gfi import GenFn, Trace
-from ..choice_address import ChoiceAddress, addr
+from ..choice_address import ChoiceAddress
 from ..choice_trie import ChoiceTrie, MutableChoiceTrie
 from functools import wraps
 import torch
