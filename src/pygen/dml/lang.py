@@ -137,44 +137,36 @@ class DMLTrace(Trace):
         self.args = args
         self.score = torch.tensor(0.0)
         self.retval = None
-        self.empty_address_subtrace = None
-        self.subtraces_trie = {}
+        self.subtraces_trie = MutableChoiceTrie() # values are all `Trace`s
 
-    @staticmethod
-    def _record_subtrace_in_subtraces_trie(subtraces_trie, address, subtrace, full_address):
-        assert isinstance(address, ChoiceAddress) and address
-        first = address.first()
-        rest = address.rest()
-        if not rest:
-            if first in subtraces_trie:
-                raise RuntimeError(
-                    f'Address {full_address} already visited; '
-                    'cannot sample a choice at it')
-            subtraces_trie[first] = subtrace
-        else:
-            if first not in subtraces_trie:
-                subtraces_trie[first] = {}
-            DMLTrace._record_subtrace_in_subtraces_trie(
-                subtraces_trie[first], rest, subtrace, full_address)
-
-    def _record_subtrace(self, subtrace, addr):
+    def _record_subtrace(self, subtrace, address):
         assert isinstance(subtrace, Trace)
-        assert isinstance(addr, ChoiceAddress)
+        assert isinstance(address, ChoiceAddress)
         value = subtrace.get_retval()
         assert not value.requires_grad
-        if not addr:
-            if (self.empty_address_subtrace is not None) or self.subtraces_trie:
-                raise RuntimeError('The empty address may be visited at most '
-                    'once, and must be the only address visited, but address '
-                    f'{next(iter(self.subtraces_trie))} was also visited')
-            self.empty_address_subtrace = subtrace
+        if not address:
+            # we are recording a subtrace at the empty address
+            if self.subtraces_trie.has_choice():
+                # there is already a subtrace at the empty address
+                raise RuntimeError('The empty address may be visited at most once')
+            elif self.subtraces_trie:
+                # some other address was also visited
+                (other_address, _) = next(self.subtraces_trie.subtries())
+                raise RuntimeError('The empty address must be the only address visited, but address '
+                                   f'{other_address} was also visited')
+            else:
+                self.subtraces_trie.set_choice(subtrace)
         else:
-            if self.empty_address_subtrace is not None:
-                raise RuntimeError('The empty address may be visited at most '
-                    'once, and must  be the only address visited, but address '
-                    f'{addr} was also visited')
-            DMLTrace._record_subtrace_in_subtraces_trie(
-                self.subtraces_trie, addr, subtrace, addr)
+            # we are recording a subtrace at a non-empty address
+            if self.subtraces_trie.has_choice():
+                raise RuntimeError('The empty address must be the only address visited, but address '
+                                   f'{address} was also visited')
+            if self.subtraces_trie.get_subtrie(address, strict=False):
+                # there is a trace at full_address or under full_address
+                raise RuntimeError(
+                    f'Address {address} was already visited; '
+                    'cannot sample a choice at it')
+            self.subtraces_trie[address] = subtrace
         score_increment = subtrace.get_score()
         self.score += score_increment
 
@@ -192,78 +184,60 @@ class DMLTrace(Trace):
 
     @staticmethod
     def _to_choice_trie(subtraces_trie):
+        assert isinstance(subtraces_trie, MutableChoiceTrie)
+        assert not subtraces_trie.has_choice()
         # subtraces_trie is a trie where leaves are Traces
-        assert isinstance(subtraces_trie, dict)
+        # we need to recursively call get_choice_trie() on those traces
+        # and return the expanded choice trie
         trie = MutableChoiceTrie()
-        for (k, v) in subtraces_trie.items():
-            if isinstance(v, Trace):
-                trie.set_subtrie(addr(k), v.get_choice_trie())
+        for (address, subtrie) in subtraces_trie.subtries():
+            if subtrie.has_choice():
+                trace = subtrie.get_choice()
+                trie.set_subtrie(address, trace.get_choice_trie())
             else:
-                assert isinstance(v, dict)
-                trie.set_subtrie(addr(k), DMLTrace._to_choice_trie(v))
+                trie.set_subtrie(address, DMLTrace._to_choice_trie(subtrie))
         return trie
 
     def get_choice_trie(self):
-        if self.empty_address_subtrace is not None:
-            trie = MutableChoiceTrie()
-            trie.set_choice(self.empty_address_subtrace.get_retval())
-            return trie
+        if self.subtraces_trie.has_choice():
+            return self.subtraces_trie.get_choice().get_choice_trie()
         else:
             return DMLTrace._to_choice_trie(self.subtraces_trie)
 
     @staticmethod
-    def _deleted_subtraces_score(prev_subtraces_trie, new_subtraces_trie):
+    def _process_deleted_subtraces(discard, prev_subtraces_trie, new_subtraces_trie):
+        assert isinstance(prev_subtraces_trie, MutableChoiceTrie)
+        assert isinstance(new_subtraces_trie, MutableChoiceTrie)
+        if prev_subtraces_trie.has_choice() and not new_subtraces_trie.has_choice():
+            # there was a subtrace at the empty address and now there is not
+            # there cannot be another subtraces
+            assert not prev_subtraces_trie.subtries()
+            prev_subtrace = prev_subtraces_trie.get_choice()
+            assert not discard.has_choice()
+            assert not discard.subtries()
+            discard.set_choice(prev_subtrace)
+            return prev_subtrace.get_score()
         score = torch.tensor(0.0, requires_grad=False)
-        for (k, v) in prev_subtraces_trie.items():
-            if isinstance(v, Trace):
-                if k not in new_subtraces_trie:
-                    score += v.get_score()
+        for (address, prev_subtrie) in prev_subtraces_trie.subtries():
+            if prev_subtrie.has_choice():
+                if not new_subtraces_trie.has_subtrie(address):
+                    prev_subtrace = prev_subtrie.get_choice()
+                    assert not discard.has_subtrie(address)
+                    discard.set_subtrie(address, prev_subtrace.get_choice_trie())
+                    score += prev_subtrace.get_score()
             else:
-                assert isinstance(v, dict)
-                if k in new_subtraces_trie:
-                    score += DMLTrace._deleted_subtraces_score(v, new_subtraces_trie[v])
-                else:
-                    score += DMLTrace._deleted_subtraces_score(v, {})
+                new_subtrie = new_subtraces_trie.get_subtrie(address, strict=False)
+                sub_discard = discard.get_subtrie(address, strict=False)
+                score += DMLTrace._process_deleted_subtraces(sub_discard, prev_subtrie, new_subtrie)
+                discard.set_subtrie(address, sub_discard)
         return score
 
-    @staticmethod
-    def _add_unvisited_to_discard(discard, prev_subtraces_trie, new_subtraces_trie):
-        for (k, v) in prev_subtraces_trie.items():
-            if isinstance(v, Trace):
-                if k not in new_subtraces_trie:
-                    discard.set_subtrie(addr(k),  v.get_choice_trie())
-            else:
-                assert isinstance(v, dict)
-                if k in new_subtraces_trie:
-                    sub_discard = discard.get_subtrie(addr(k), strict=False)
-                else:
-                    sub_discard = MutableChoiceTrie()
-                DMLTrace._add_unvisited_to_discard(sub_discard, v, new_subtraces_trie[v])
-                discard.set_subtrie(addr(k), sub_discard)
-
-    def _get_subtrace(self, subtraces_trie, address):
+    def _get_subtrace_or_none(self, address):
         assert isinstance(address, ChoiceAddress)
-        # empty address.
-        if not address:
-            return self.empty_address_subtrace
-        # non-empty address
-        first = address.first()
-        rest = address.rest()
-        if first not in subtraces_trie:
-            return None
-        if rest:
-            trie = subtraces_trie[first]
-            if not isinstance(trie, dict):
-                # there was previously a subtrace at this address, but now there is a subtrace at a
-                # an extension of this address
-                return None
-            return self._get_subtrace(subtraces_trie[first], rest)
-        subtrace = subtraces_trie[first]
-        if not isinstance(subtrace, Trace):
-            # there was previously a subtrace at an extension of this address, but now there this a
-            # subtrace at this address
-            return None
-        return subtrace
+        subtrie = self.subtraces_trie.get_subtrie(address, strict=False)
+        if subtrie.has_choice():
+            return subtrie.get_choice()
+        return None
 
     def update(self, args, constraints):
         new_trace = DMLTrace(self.get_gen_fn(), args)
@@ -276,10 +250,10 @@ class DMLTrace(Trace):
                 if address is None:
                     return _splice_dml_call(callee, callee_args, gentrace)
                 nonlocal log_weight
-                prev_subtrace = self._get_subtrace(self.subtraces_trie, address)
+                prev_subtrace = self._get_subtrace_or_none(address)
                 if prev_subtrace:
-                    if prev_subtrace.get_gen_fn() != callee:
-                        # TODO: {prev_callee} is undefined.
+                    prev_callee = prev_subtrace.get_gen_fn()
+                    if prev_callee != callee:
                         raise RuntimeError(f'Generative function at address '
                             f'{address} changed from {prev_callee} to {callee}')
                     (subtrace, log_weight_increment, sub_discard) = prev_subtrace.update(
@@ -301,8 +275,8 @@ class DMLTrace(Trace):
         with torch.inference_mode(mode=True):
             new_trace.retval = p(*args)
 
-        log_weight -= DMLTrace._deleted_subtraces_score(self.subtraces_trie, new_trace.subtraces_trie)
-        self._add_unvisited_to_discard(discard, self.subtraces_trie, new_trace.subtraces_trie)
+        log_weight -=  DMLTrace._process_deleted_subtraces(
+            discard, self.subtraces_trie, new_trace.subtraces_trie)
 
         return (new_trace, log_weight, discard)
 
@@ -324,7 +298,7 @@ class DMLTrace(Trace):
                             raise NotImplementedError(
                                 'Only Tensor arguments are currently supported')
                     with torch.inference_mode(mode=True):
-                        prev_subtrace = self._get_subtrace(self.subtraces_trie, address)
+                        prev_subtrace = self.subtraces_trie[address]
                         torch_autograd_function = torch_autograd_function_from_trace(prev_subtrace)
                     (score_increment, callee_retval) = torch_autograd_function(*callee_args)
                     nonlocal score
