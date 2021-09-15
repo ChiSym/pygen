@@ -1,39 +1,42 @@
-# Notes
+# Progress
 
-Milestone 0 (done, on `main` branch)
+Milestone 0
 
-Milestone 1 (in progress)
+[x] GFI fully implemented for DML with splicing and distribution calls only (no hierarchical addresses)
 
-- choice tries are implemented and tested
+Milestone 1 
 
-- simulate, generate, and update are implemented and tested, including for these 'non-spliced' generative functions
+[x] choice tries are implemented and tested
 
-- there is some example of an 'external' (non-DML) generative function that gets invoked (perhaps Feras' multivariate-normal generative function)
+[x] simulate, generate, and update are implemented and tested, including for these 'non-spliced' generative functions
 
-- choice_gradients and accumulate_param_gradients raise NotImplementedErrors
+[ ] there is some example of an 'external' (non-DML) generative function that gets invoked (perhaps Feras' multivariate-normal generative function)
 
-Milestone 2 (not started)
+[x] choice_gradients and accumulate_param_gradients raise NotImplementedErrors
 
-- hierarchical selections implemented and tested
+Milestone 2
 
-- choice_gradients and accumulate_param_grads implemented and tested for the hierarchical address case
+[x] make AD work when arguments and return values of non-spliced generative functions are either Tensors OR Python tuples, lists, and dicts
 
-- still no incremental computation (no change hints) and AD will only work for arguments to generative functions that are are Tensors (not for arguments that are Python compound data types) and for return values of generative functions that are Tensors (not Python compound data types)
+[x] accumulate_param_grads implemented and tested for hierarchical address version
 
-Milestone 3 (not started)
+[ ] hierarchical selections implemented and tested
 
-- add GenList and other compound data types, and combinators
+[ ] choice_gradients implemented and tested for the hierarchical address case
 
-- make AD work when arguments and return values of non-spliced generative functions are either Tensors OR our compound data types (e.g. GenList)
+Milestone 3
 
-- but don't yet implement change hints or persistent data types (use regular Python data types in the internal implementation, and copy data all the time) 
+[ ] change hints and incremental computation (update and regenerate), building on `pyrsistent`
 
-Milestone 4 (not started)
+[ ] implement unfold combinator and test with particle filtering in HMM
 
-- add incremental computation (update and regenerate), building on `pyrsistent` and implement regenerate
+[ ] implement regenerate
 
-- add change hings
+Milestone 4
 
+[ ] implement SML backend (static Gen IR)
+
+[ ] implement SML front-end
 
 # MiniPyTorchGenDML
 
