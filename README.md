@@ -2,7 +2,7 @@
 
 #### Milestone 0
 
-[X] GFI fully implemented for DML with splicing and distribution calls only (no hierarchical addresses)
+[X] fully-functional GFI implementation for DML with splicing and distribution calls only (no hierarchical addresses)
 
 #### Milestone 1 
 
@@ -23,6 +23,8 @@
 [  ] hierarchical selections implemented and tested
 
 [  ] choice_gradients implemented and tested for the hierarchical address case
+
+(this gives a fully-functional GFI with hierarchical addresses)
 
 #### Milestone 3
 
