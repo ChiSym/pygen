@@ -110,24 +110,28 @@ def torch_autograd_function_from_trace(trace):
     class AutogradFunctionForTrace(torch.autograd.Function):
 
         @staticmethod
-        def forward(ctx, *args):
-            return trace.get_score(), trace.get_retval()
+        def forward(ctx, *args_unrolled):
+            retval = trace.get_retval()
+            retval_unrolled = gradients.unroll_torch_tensors(retval, detach=True)
+            return (trace.get_score(), *retval_unrolled)
 
         @staticmethod
-        def backward(ctx, score_increment_grad, retval_grad):
+        def backward(ctx, score_increment_grad, *retval_grad_unrolled):
             assert isinstance(score_increment_grad, torch.Tensor)
-            assert isinstance(retval_grad, torch.Tensor)
+            retval_grad = gradients.roll_torch_tensors(trace.get_retval(), retval_grad_unrolled)
             assert not score_increment_grad.requires_grad
-            assert not retval_grad.requires_grad
+            for t in retval_grad_unrolled:
+                assert not t.requires_grad
             # NOTE: score_increment_grad is a dummy value
             arg_grads, choice_dict, grad_dict = trace.choice_gradients(None, retval_grad)
             assert isinstance(arg_grads, tuple)
-            for grad in arg_grads:
-                assert isinstance(grad, torch.Tensor)
-                assert not grad.requires_grad
+            arg_grads_unrolled = gradients.unroll_torch_tensors(arg_grads)
+            for t in arg_grads_unrolled:
+                assert isinstance(t, torch.Tensor)
+                assert not t.requires_grad
             assert choice_dict is None
             assert grad_dict is None
-            return arg_grads
+            return arg_grads_unrolled
 
     return AutogradFunctionForTrace.apply
 
@@ -144,8 +148,6 @@ class DMLTrace(Trace):
     def _record_subtrace(self, subtrace, address):
         assert isinstance(subtrace, Trace)
         assert isinstance(address, ChoiceAddress)
-        value = subtrace.get_retval()
-        assert not value.requires_grad
         if not address:
             # we are recording a subtrace at the empty address
             if self.subtraces_trie.has_choice():
@@ -286,17 +288,8 @@ class DMLTrace(Trace):
         raise NotImplementedError()
 
     def choice_gradients(self, selection, retval_grad):
-        # NOTE: retval_grad is either None or is a torch.Tensor
-        # arguments are either Tensors, or are not tracked
-        # step 1:
-        # support case when retval and args are Python lists...
-        # ' If an output doesn’t require_grad, then the gradient can be None'
-
-        # does the user need a way of declaring which inputs support AD?
-        # or not.. (allow_unused)
-
         if selection is not None:
-            raise NotImplementedError() # TODO add support for gradients wrt choices.
+            raise NotImplementedError()  # TODO add support for gradients wrt choices.
         with torch.inference_mode(mode=False):
             score = torch.tensor(0.0, requires_grad=False)
 
@@ -304,19 +297,15 @@ class DMLTrace(Trace):
                 if isinstance(callee, GenFn):
                     if address is None:
                         return _splice_dml_call(callee, callee_args, gentrace)
-                    for arg in callee_args:
-                        if not isinstance(arg, torch.Tensor):
-                            raise NotImplementedError(
-                                'Only Tensor arguments are currently supported')
                     with torch.inference_mode(mode=True):
-                        prev_subtrace = self.subtraces_trie[address]
-                        torch_autograd_function = torch_autograd_function_from_trace(prev_subtrace)
-                    (score_increment, callee_retval) = torch_autograd_function(*callee_args)
+                        subtrace = self.subtraces_trie[address]
+                        torch_autograd_function = torch_autograd_function_from_trace(subtrace)
+                    callee_args_unrolled = gradients.unroll_torch_tensors(callee_args)
+                    (score_increment, *callee_retval_unrolled) = torch_autograd_function(*callee_args_unrolled)
+                    callee_retval = gradients.roll_torch_tensors(
+                            subtrace.get_retval(), tuple(callee_retval_unrolled))
                     nonlocal score
                     score += score_increment
-                    if not isinstance(callee_retval, torch.Tensor):
-                        raise NotImplementedError(
-                            'Only a single Tensor return value is currently')
                     return callee_retval
                 if isinstance(callee, torch.nn.Module):
                     for param in callee.parameters():

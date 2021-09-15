@@ -2,15 +2,22 @@ import torch
 import functools
 
 
-def unroll_torch_tensors(value):
+# TODO support dict
+
+def unroll_torch_tensors(value, detach=False):
+    def recurse(x):
+        return unroll_torch_tensors(x, detach=detach)
     if isinstance(value, torch.Tensor):
-        return (value,)
+        if detach:
+            return (value.detach(),)
+        else:
+            return (value,)
     if isinstance(value, tuple):
-        result = functools.reduce(lambda a, b: a + b, map(unroll_torch_tensors, value))
+        result = functools.reduce(lambda a, b: a + b, map(recurse, value))
         assert isinstance(result, tuple)
         return result
     elif isinstance(value, list):
-        result = functools.reduce(lambda a, b: a + b, map(unroll_torch_tensors, value))
+        result = functools.reduce(lambda a, b: a + b, map(recurse, value))
         assert isinstance(result, tuple)
         return result
     else:
