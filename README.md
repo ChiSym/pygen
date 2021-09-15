@@ -1,42 +1,42 @@
 # Progress
 
-Milestone 0
+#### Milestone 0
 
-[x] GFI fully implemented for DML with splicing and distribution calls only (no hierarchical addresses)
+[X] GFI fully implemented for DML with splicing and distribution calls only (no hierarchical addresses)
 
-Milestone 1 
+#### Milestone 1 
 
-[x] choice tries are implemented and tested
+[X] choice tries are implemented and tested
 
-[x] simulate, generate, and update are implemented and tested, including for these 'non-spliced' generative functions
+[X] simulate, generate, and update are implemented and tested, including for these 'non-spliced' generative functions
 
-[ ] there is some example of an 'external' (non-DML) generative function that gets invoked (perhaps Feras' multivariate-normal generative function)
+[  ] there is some example of an 'external' (non-DML) generative function that gets invoked (perhaps Feras' multivariate-normal generative function)
 
-[x] choice_gradients and accumulate_param_gradients raise NotImplementedErrors
+[X] choice_gradients and accumulate_param_gradients raise NotImplementedErrors
 
-Milestone 2
+#### Milestone 2
 
-[x] make AD work when arguments and return values of non-spliced generative functions are either Tensors OR Python tuples, lists, and dicts
+[X] make AD work when arguments and return values of non-spliced generative functions are either Tensors OR Python tuples, lists, and dicts
 
-[x] accumulate_param_grads implemented and tested for hierarchical address version
+[X] accumulate_param_grads implemented and tested for hierarchical address version
 
-[ ] hierarchical selections implemented and tested
+[  ] hierarchical selections implemented and tested
 
-[ ] choice_gradients implemented and tested for the hierarchical address case
+[  ] choice_gradients implemented and tested for the hierarchical address case
 
-Milestone 3
+#### Milestone 3
 
-[ ] change hints and incremental computation (update and regenerate), building on `pyrsistent`
+[  ] change hints and incremental computation (update and regenerate), building on `pyrsistent`
 
-[ ] implement unfold combinator and test with particle filtering in HMM
+[  ] implement unfold combinator and test with particle filtering in HMM
 
-[ ] implement regenerate
+[  ] implement regenerate
 
-Milestone 4
+#### Milestone 4
 
-[ ] implement SML backend (static Gen IR)
+[  ] implement SML backend (static Gen IR)
 
-[ ] implement SML front-end
+[  ] implement SML front-end
 
 # MiniPyTorchGenDML
 
