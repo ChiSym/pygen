@@ -1,4 +1,4 @@
-from ..gfi import GenFn, Trace
+from ..gfi import GenFn, Trace, Unknown
 from ..choice_address import ChoiceAddress
 from ..choice_trie import ChoiceTrie, MutableChoiceTrie
 import pygen.gradients as gradients
@@ -243,7 +243,7 @@ class DMLTrace(Trace):
             return subtrie.get_choice()
         return None
 
-    def update(self, args, constraints):
+    def update(self, args, args_change, constraints):
         new_trace = DMLTrace(self.get_gen_fn(), args)
         discard = MutableChoiceTrie()
         log_weight = torch.tensor(0.0, requires_grad=False)
@@ -260,8 +260,9 @@ class DMLTrace(Trace):
                     if prev_callee != callee:
                         raise RuntimeError(f'Generative function at address '
                             f'{address} changed from {prev_callee} to {callee}')
-                    (subtrace, log_weight_increment, sub_discard) = prev_subtrace.update(
-                        callee_args, constraints.get_subtrie(address, strict=False))
+                    callee_args_change = tuple(Unknown() for _ in callee_args)
+                    (subtrace, log_weight_increment, callee_ret_change, sub_discard) = prev_subtrace.update(
+                        callee_args, callee_args_change, constraints.get_subtrie(address, strict=False))
                     if sub_discard:
                         discard.set_subtrie(address, sub_discard)
                 else:
@@ -279,12 +280,12 @@ class DMLTrace(Trace):
         with torch.inference_mode(mode=True):
             new_trace.retval = p(*args)
 
-        log_weight -=  DMLTrace._process_deleted_subtraces(
+        log_weight -= DMLTrace._process_deleted_subtraces(
             discard, self.subtraces_trie, new_trace.subtraces_trie)
 
-        return (new_trace, log_weight, discard)
+        return (new_trace, log_weight, Unknown(), discard)
 
-    def regenerate(self, args, constraints):
+    def regenerate(self, args=None, args_change=None, selection=None):
         raise NotImplementedError()
 
     def choice_gradients(self, selection, retval_grad):

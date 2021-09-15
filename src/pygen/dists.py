@@ -1,4 +1,4 @@
-from .gfi import Trace, GenFn
+from .gfi import Trace, GenFn, Same, Unknown
 from .choice_trie import ChoiceTrie, MutableChoiceTrie
 import torch
 
@@ -12,7 +12,7 @@ class TorchDist(GenFn):
 
 class TorchDistTrace(Trace):
 
-    def __init__(self, gen_fn, args, value, lpdf):
+    def __init__(self, gen_fn, args, dist, value, lpdf):
         assert isinstance(gen_fn, TorchDist)
         assert isinstance(value, torch.Tensor)
         assert not value.requires_grad
@@ -20,7 +20,7 @@ class TorchDistTrace(Trace):
         self.args = args
         self.value = value
         self.lpdf = lpdf
-        # TODO cache the torch.distribution.Distribution object in the trace..
+        self.dist = dist
 
     def get_gen_fn(self):
         return self.gen_fn
@@ -39,25 +39,36 @@ class TorchDistTrace(Trace):
         trie.set_choice(self.value)
         return trie
 
-    def update(self, args, choice_trie):
-        assert isinstance(choice_trie, ChoiceTrie)
+    def update(self, args, args_change, choice_trie):
+        args_unchanged = args_change == Same()  # Q: can we promote tuple of Same to Same?
+        value_unchanged = not bool(choice_trie)
+        if args_unchanged:
+            new_dist = self.dist
+        else:
+            new_dist = self.gen_fn.get_dist_class()(*args)
         discard = MutableChoiceTrie()
         prev_value = self.value
-        if not choice_trie:
+        if value_unchanged:
             # choice_trie is empty
             value = prev_value
+            ret_change = Same()
         else:
             # choice_trie is not empty
+            assert isinstance(choice_trie, ChoiceTrie)
             value = _check_is_primitive_and_get_choice(choice_trie)
             discard.set_choice(prev_value)
-        new_dist = self.gen_fn.get_dist_class()(*args)
-        new_lpdf = new_dist.log_prob(value).sum()
-        prev_lpdf = self.lpdf
-        log_weight = new_lpdf - prev_lpdf
-        new_trace = TorchDistTrace(self.gen_fn, args, value, new_lpdf)
-        return new_trace, log_weight, discard
+            ret_change = Unknown()
+        if args_unchanged and value_unchanged:
+            new_lpdf = self.lpdf
+            log_weight = 0.0
+        else:
+            new_lpdf = new_dist.log_prob(value).sum()
+            prev_lpdf = self.lpdf
+            log_weight = new_lpdf - prev_lpdf
+        new_trace = TorchDistTrace(self.gen_fn, args, new_dist, value, new_lpdf)
+        return new_trace, log_weight, ret_change, discard
 
-    def regenerate(self, args, selection):
+    def regenerate(self, args=None, args_change=None, selection=None):
         raise NotImplementedError()
 
     # TODO: we will also probably want to have 'inlined' distributions
@@ -72,8 +83,7 @@ class TorchDistTrace(Trace):
             args_tracked = tuple(
                 arg.detach().clone().requires_grad_(True) if isinstance(arg, torch.Tensor) else arg
                 for arg in self.get_args())
-            dist = self.gen_fn.get_dist_class()(*args_tracked)
-            lpdf = dist.log_prob(value).sum()
+            lpdf = self.dist.log_prob(value).sum()
             lpdf.backward(retain_graph=False)
             arg_grads = tuple(
                 arg.grad if isinstance(arg, torch.Tensor) else None
@@ -101,7 +111,7 @@ def torch_dist_to_gen_fn(dist_class):
             dist = dist_class(*args)
             value = dist.sample()
             lpdf = dist.log_prob(value).sum()
-            return TorchDistTrace(self, args, value, lpdf)
+            return TorchDistTrace(self, args, dist, value, lpdf)
     
         def generate(self, args, choice_trie):
             dist = dist_class(*args)
@@ -114,7 +124,7 @@ def torch_dist_to_gen_fn(dist_class):
                 log_weight = lpdf
             else:
                 log_weight = torch.tensor(0.0, requires_grad=False)
-            return (TorchDistTrace(self, args, value, lpdf), log_weight)
+            return (TorchDistTrace(self, args, dist, value, lpdf), log_weight)
 
     return gen_fn_class()
 

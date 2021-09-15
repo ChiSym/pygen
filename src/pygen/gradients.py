@@ -2,7 +2,7 @@ import torch
 import functools
 
 
-# TODO: support namedtuple
+# TODO: support namedtuples, and user-defined classes
 
 def unroll_torch_tensors(value, detach=False):
     def recurse(x):

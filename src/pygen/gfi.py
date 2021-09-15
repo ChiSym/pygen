@@ -1,3 +1,5 @@
+# TODO use abc.ABC?
+
 class GenFn:
 
     def simulate(self, args):
@@ -36,10 +38,12 @@ class Trace:
     def get_choice_trie(self):
         raise NotImplementedError()
 
-    def update(self, args, constraints):
+    # TODO: make each argument optional (but if args_change is provided then args must also
+    def update(self, args, args_change, constraint):
         raise NotImplementedError()
 
-    def regenerate(self, args, selection):
+    # TODO: make each argument optional (but if args_change is provided then args must also
+    def regenerate(self, args, args_change, selection):
         raise NotImplementedError()
 
     def accumulate_param_gradients(self, retgrad, scale_factor):
