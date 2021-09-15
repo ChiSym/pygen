@@ -2,7 +2,7 @@ import torch
 import functools
 
 
-# TODO support dict
+# TODO: support namedtuple
 
 def unroll_torch_tensors(value, detach=False):
     def recurse(x):
@@ -18,6 +18,10 @@ def unroll_torch_tensors(value, detach=False):
         return result
     elif isinstance(value, list):
         result = functools.reduce(lambda a, b: a + b, map(recurse, value))
+        assert isinstance(result, tuple)
+        return result
+    elif isinstance(value, dict):
+        result = functools.reduce(lambda a, b: a + b, map(recurse, value.values()))
         assert isinstance(result, tuple)
         return result
     else:
@@ -39,6 +43,16 @@ def _roll_torch_tensors(value, unrolled, start_idx):
             return tuple(rolled), num
         else:
             return rolled, num
+    elif isinstance(value, dict):
+        rolled = {}
+        num = 0
+        # NOTE: order is guaranteed to be the same as order for value.values() when unrolling
+        for k, element in value.items():
+            rolled_element, element_num = _roll_torch_tensors(element, unrolled, start_idx)
+            start_idx += element_num
+            num += element_num
+            rolled[k] = rolled_element
+        return rolled, num
     else:
         raise NotImplementedError(f'gradient for object {value} not implemented')
 
@@ -56,5 +70,10 @@ def track(value):
         return tuple(map(track, value))
     elif isinstance(value, list):
         return list(map(track, value))
+    elif isinstance(value, dict):
+        d = {}
+        for k, element in value.items():
+            d[k] = track(element)
+        return d
     else:
         raise NotImplementedError(f'gradient for object {value} not implemented')

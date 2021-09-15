@@ -7,24 +7,24 @@ import torch
 
 @gendml
 def f1(x, y, compound):
-    (a, b, (c, d, (e, g))) = compound
-    return [(x, y), (x, [x, y]), a + b + c + d + e + g]
+    assert isinstance(compound, dict)
+    (a, b, (c, d, (e, g))) = compound['k1']
+    return [(x, y), (x, [x, y]), {'k2': a + b + c + d + e + g}]
 
 
 def test_choice_gradients_no_calls():
     t = torch.tensor
     x = y = a = b = c = d = e = g = t(0.0)
-    compound = (a, b, [c, d, (e, g)])
+    compound = {'k1': (a, b, [c, d, (e, g)])}
     trace = f1.simulate((x, y, compound))
-    compound_retgrad = (t(1.0), t(1.0), [t(1.0), t(1.0), (t(1.0), t(1.0))])
-    retgrad = [(t(1.0), t(1.0)), (t(1.0), [t(1.0), t(1.0)]), compound_retgrad]
+    retgrad = [(t(1.0), t(1.0)), (t(1.0), [t(1.0), t(1.0)]), {'k2': t(1.0)}]
     expected_x_grad = t(3.0)
     expected_y_grad = t(2.0)
     expected_abcdeg_grad = t(1.0)
     (arg_grads, choice_values, choice_grads) = trace.choice_gradients(None, retgrad)
     assert len(arg_grads) == 3
     x_grad, y_grad, compound_grad = arg_grads
-    (a_grad, b_grad, [c_grad, d_grad, (e_grad, g_grad)]) = compound_grad
+    (a_grad, b_grad, [c_grad, d_grad, (e_grad, g_grad)]) = compound_grad['k1']
     assert torch.allclose(x_grad, expected_x_grad)
     assert torch.allclose(y_grad, expected_y_grad)
     assert torch.allclose(a_grad, expected_abcdeg_grad)
@@ -47,10 +47,9 @@ def f2(x, y, compound):
 def test_choice_gradients_calls():
     t = torch.tensor
     x = y = a = b = c = d = e = g = t(0.0)
-    compound = (a, b, [c, d, (e, g)])
+    compound = {'k1': (a, b, [c, d, (e, g)])}
     trace = f2.simulate((x, y, compound))
-    compound_retgrad = (t(1.0), t(1.0), [t(1.0), t(1.0), (t(1.0), t(1.0))])
-    retgrad = [(t(1.0), t(1.0)), (t(1.0), [t(1.0), t(1.0)]), compound_retgrad]
+    retgrad = [(t(1.0), t(1.0)), (t(1.0), [t(1.0), t(1.0)]), {'k2': t(1.0)}]
     retgrad = (retgrad, retgrad)
     expected_x_grad = t(3.0) * 2  # 0
     expected_y_grad = t(2.0) * 2 # 5
@@ -59,7 +58,7 @@ def test_choice_gradients_calls():
     print(arg_grads)
     assert len(arg_grads) == 3
     x_grad, y_grad, compound_grad = arg_grads
-    (a_grad, b_grad, [c_grad, d_grad, (e_grad, g_grad)]) = compound_grad
+    (a_grad, b_grad, [c_grad, d_grad, (e_grad, g_grad)]) = compound_grad['k1']
     assert torch.allclose(x_grad, expected_x_grad)
     assert torch.allclose(y_grad, expected_y_grad)
     assert torch.allclose(a_grad, expected_abcdeg_grad)
