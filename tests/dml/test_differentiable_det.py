@@ -109,6 +109,12 @@ def check_param_gradients_unset_or_zero():
         assert param.grad is None or torch.equal(param.grad, torch.zeros_like(param))
 
 
+def check_param_gradients_nonzero():
+    for param in f.get_torch_nn_module().parameters():
+        assert param.grad is not None
+        assert not torch.equal(param.grad, torch.zeros_like(param))
+
+
 def test_choice_gradients():
     mu = torch.tensor([1.0, 2.0])
     z = torch.tensor([1.1, 2.1])
@@ -151,3 +157,45 @@ def test_choice_gradients():
 
     assert choice_values is None
     assert choice_grads is None
+
+
+def test_accumulate_param_gradients():
+    mu = torch.tensor([1.0, 2.0])
+    z = torch.tensor([1.1, 2.1])
+    x = torch.tensor([1.1, 1.2, 1.3, 1.4])
+    trie = MutableChoiceTrie()
+    trie[addr('z')] = z
+    trie[addr('x')] = x
+    (trace, _) = f.generate((mu,), trie)
+    retval_grad = torch.tensor([0.3, 0.4])
+    scale_factor = 1.123
+
+    # compute expected_mu_grad
+    mu_proxy = mu.detach().clone().requires_grad_(True)
+    torch.autograd.backward(torch.distributions.normal.Normal(mu_proxy, 1.0).log_prob(z).sum())
+    expected_mu_grad = mu_proxy.grad
+    f.get_torch_nn_module().zero_grad()
+
+    # compute expected gradients with respect to parameters
+    network.requires_grad_(True)
+    torch.autograd.backward(
+        torch.distributions.normal.Normal(mu, 1.0).log_prob(z).sum() +
+        torch.distributions.normal.Normal(network(z), 1.0).log_prob(x).sum())
+    expected_param_grads = {}
+    for (name, param) in f.get_torch_nn_module().named_parameters():
+        expected_param_grads[name] = param.grad * scale_factor
+    f.get_torch_nn_module().zero_grad()
+
+    check_param_gradients_unset_or_zero()
+    arg_grads = trace.accumulate_param_gradients(retval_grad, scale_factor)
+    check_param_gradients_nonzero()
+
+    for (name, param) in f.get_torch_nn_module().named_parameters():
+        assert torch.allclose(param.grad, expected_param_grads[name])
+
+    assert len(arg_grads) == 1
+    mu_grad = arg_grads[0]
+    assert mu_grad.size() == mu.size()
+    assert torch.allclose(mu_grad, expected_mu_grad)
+
+    f.get_torch_nn_module().zero_grad()

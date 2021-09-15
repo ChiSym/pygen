@@ -287,6 +287,41 @@ class DMLTrace(Trace):
     def regenerate(self, args, constraints):
         raise NotImplementedError()
 
+    def _gradients_gentrace(self, callee, callee_args, address, set_param_requires_grad, score, recurse):
+        if isinstance(callee, GenFn):
+            if address is None:
+                return _splice_dml_call(callee, callee_args, recurse)
+            with torch.inference_mode(mode=True):
+                subtrace = self.subtraces_trie[address]
+                torch_autograd_function = torch_autograd_function_from_trace(subtrace)
+            callee_args_unrolled = gradients.unroll_torch_tensors(callee_args)
+            (score_increment, *callee_retval_unrolled) = torch_autograd_function(*callee_args_unrolled)
+            callee_retval = gradients.roll_torch_tensors(
+                subtrace.get_retval(), tuple(callee_retval_unrolled))
+            score.add_(score_increment)
+            return callee_retval
+        if isinstance(callee, torch.nn.Module):
+            for param in callee.parameters():
+                param.requires_grad_(set_param_requires_grad)
+            return callee(*callee_args)
+        raise RuntimeError(f'Unknown type of generative function: {callee}')
+
+    @staticmethod
+    def _get_torch_outputs_and_grads(score, retval, retval_grad):
+        outputs = []
+        output_grads = []
+        if score.requires_grad:
+            outputs.append(score)
+            output_grads.append(torch.tensor(1.0))
+        retval_tensors = gradients.unroll_torch_tensors(retval)
+        retval_grads = gradients.unroll_torch_tensors(retval_grad)
+        for (output, output_grad) in zip(retval_tensors, retval_grads):
+            assert isinstance(output, torch.Tensor)
+            if output.requires_grad:
+                outputs.append(output)
+                output_grads.append(output_grad)
+        return outputs, output_grads
+
     def choice_gradients(self, selection, retval_grad):
         if selection is not None:
             raise NotImplementedError()  # TODO add support for gradients wrt choices.
@@ -294,24 +329,7 @@ class DMLTrace(Trace):
             score = torch.tensor(0.0, requires_grad=False)
 
             def gentrace(callee, callee_args, address=None):
-                if isinstance(callee, GenFn):
-                    if address is None:
-                        return _splice_dml_call(callee, callee_args, gentrace)
-                    with torch.inference_mode(mode=True):
-                        subtrace = self.subtraces_trie[address]
-                        torch_autograd_function = torch_autograd_function_from_trace(subtrace)
-                    callee_args_unrolled = gradients.unroll_torch_tensors(callee_args)
-                    (score_increment, *callee_retval_unrolled) = torch_autograd_function(*callee_args_unrolled)
-                    callee_retval = gradients.roll_torch_tensors(
-                            subtrace.get_retval(), tuple(callee_retval_unrolled))
-                    nonlocal score
-                    score += score_increment
-                    return callee_retval
-                if isinstance(callee, torch.nn.Module):
-                    for param in callee.parameters():
-                        param.requires_grad_(False)
-                    return callee(*callee_args)
-                raise RuntimeError(f'Unknown type of generative function: {callee}')
+                return self._gradients_gentrace(callee, callee_args, address, False, score, gentrace)
 
             p = _inject_variables({'gentrace': gentrace}, self.gen_fn.p)
 
@@ -320,22 +338,40 @@ class DMLTrace(Trace):
             retval = p(*args_tracked)
 
             inputs = gradients.unroll_torch_tensors(args_tracked)
-            if score.requires_grad:
-                outputs = (score, *gradients.unroll_torch_tensors(retval))
-                grad_outputs = (torch.tensor(1.0), *gradients.unroll_torch_tensors(retval_grad))
-            else:
-                outputs = gradients.unroll_torch_tensors(retval)
-                grad_outputs = gradients.unroll_torch_tensors(retval_grad)
-            input_grads = torch.autograd.grad(
-                outputs, inputs,
-                grad_outputs=grad_outputs,
-                allow_unused=True)
+            outputs, output_grads = DMLTrace._get_torch_outputs_and_grads(score, retval, retval_grad)
+            input_grads = torch.autograd.grad(outputs, inputs, grad_outputs=output_grads, allow_unused=True)
             arg_grads = gradients.roll_torch_tensors(args, input_grads)
 
         return arg_grads, None, None
 
-    def accumulate_param_gradients(self, retgrad, scale_factor):
-        raise NotImplementedError()
+    def accumulate_param_gradients(self, retval_grad, scale_factor):
+        with torch.inference_mode(mode=False):
+            score = torch.tensor(0.0, requires_grad=False)
+
+            def gentrace(callee, callee_args, address=None):
+                return self._gradients_gentrace(callee, callee_args, address, True, score, gentrace)
+
+            p = _inject_variables({'gentrace': gentrace}, self.gen_fn.p)
+
+            args = self.get_args()
+            args_tracked = gradients.track(args)
+            retval = p(*args_tracked)
+
+            # multiply the existing gradient by 1/scale_factor
+            for param in self.get_gen_fn().get_torch_nn_module().parameters():
+                if param.grad is not None:
+                    param.grad.mul_(1.0 / scale_factor)
+
+            # backpropagation (accumulate gradients with a scale factor of 1)
+            outputs, output_grads = DMLTrace._get_torch_outputs_and_grads(score, retval, retval_grad)
+            torch.autograd.backward(outputs, grad_tensors=output_grads)
+            arg_grads = gradients.unroll_torch_tensors(args_tracked, get_grad_instead=True)
+
+            # then multiply the total gradient by scale_factor
+            for param in self.get_gen_fn().get_torch_nn_module().parameters():
+                param.grad.mul_(scale_factor)
+
+        return arg_grads
 
 
 def gendml(p):

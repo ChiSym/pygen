@@ -4,24 +4,30 @@ import functools
 
 # TODO: support namedtuple
 
-def unroll_torch_tensors(value, detach=False):
+def unroll_torch_tensors(value, detach=False, get_grad_instead=False):
+    if detach and get_grad_instead:
+        raise RuntimeError('Can only set one of detach and get_grad_instead')
+
     def recurse(x):
-        return unroll_torch_tensors(x, detach=detach)
+        return unroll_torch_tensors(x, detach=detach, get_grad_instead=get_grad_instead)
+
     if isinstance(value, torch.Tensor):
-        if detach:
+        if get_grad_instead:
+            return (value.grad,)
+        elif detach:
             return (value.detach(),)
         else:
             return (value,)
     if isinstance(value, tuple):
-        result = functools.reduce(lambda a, b: a + b, map(recurse, value))
+        result = functools.reduce(lambda a, b: a + b, map(recurse, value), ())
         assert isinstance(result, tuple)
         return result
     elif isinstance(value, list):
-        result = functools.reduce(lambda a, b: a + b, map(recurse, value))
+        result = functools.reduce(lambda a, b: a + b, map(recurse, value), ())
         assert isinstance(result, tuple)
         return result
     elif isinstance(value, dict):
-        result = functools.reduce(lambda a, b: a + b, map(recurse, value.values()))
+        result = functools.reduce(lambda a, b: a + b, map(recurse, value.values()), ())
         assert isinstance(result, tuple)
         return result
     else:
