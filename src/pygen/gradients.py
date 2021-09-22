@@ -1,9 +1,24 @@
 import torch
 import functools
 
-# TODO instead of treating named tuple as a special case; allow users to
-# register their classes, and consider requiring users to register their
-# classes created with namedtuple factory
+class UserDefinedType:
+    pass
+
+def supports_ad(_unroll, _roll):
+    def make_new_type(user_class):
+        class new_type(UserDefinedType, user_class):
+    
+            def unroll_torch_tensors(self, detach, get_grad_instead):
+                if detach and get_grad_instead:
+                    raise RuntimeError('Can only set one of detach and get_grad_instead')
+                return _unroll(self, detach, get_grad_instead)
+    
+            def roll_torch_tensors(self, unrolled, start_idx):
+                return _roll(self, unrolled, start_idx)
+    
+        return new_type
+    return make_new_type
+
 
 def unroll_torch_tensors(value, detach=False, get_grad_instead=False):
     if detach and get_grad_instead:
@@ -30,6 +45,10 @@ def unroll_torch_tensors(value, detach=False, get_grad_instead=False):
         return result
     elif isinstance(value, dict):
         result = functools.reduce(lambda a, b: a + b, map(recurse, value.values()), ())
+        assert isinstance(result, tuple)
+        return result
+    elif isinstance(value, UserDefinedType):
+        result = value.unroll_torch_tensors(detach=detach, get_grad_instead=get_grad_instead)
         assert isinstance(result, tuple)
         return result
     else:
@@ -65,6 +84,8 @@ def _roll_torch_tensors(value, unrolled, start_idx):
             num += element_num
             rolled[k] = rolled_element
         return rolled, num
+    elif isinstance(value, UserDefinedType):
+        return value.roll_torch_tensors(unrolled, start_idx)
     else:
         raise NotImplementedError(f'gradient for object {value} not implemented')
 
