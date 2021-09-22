@@ -1,8 +1,9 @@
 import torch
 import functools
 
-
-# TODO: support namedtuple
+# TODO instead of treating named tuple as a special case; allow users to
+# register their classes, and consider requiring users to register their
+# classes created with namedtuple factory
 
 def unroll_torch_tensors(value, detach=False, get_grad_instead=False):
     if detach and get_grad_instead:
@@ -19,6 +20,7 @@ def unroll_torch_tensors(value, detach=False, get_grad_instead=False):
         else:
             return (value,)
     if isinstance(value, tuple):
+        # NOTE: this also handles namedtuples
         result = functools.reduce(lambda a, b: a + b, map(recurse, value), ())
         assert isinstance(result, tuple)
         return result
@@ -33,6 +35,8 @@ def unroll_torch_tensors(value, detach=False, get_grad_instead=False):
     else:
         raise NotImplementedError(f'gradient for object {value} not implemented')
 
+def _isnamedtuple(value):
+    return isinstance(value, tuple) and getattr(value, '_fields', None)
 
 def _roll_torch_tensors(value, unrolled, start_idx):
     if isinstance(value, torch.Tensor):
@@ -45,10 +49,12 @@ def _roll_torch_tensors(value, unrolled, start_idx):
             start_idx += element_num
             num += element_num
             rolled.append(rolled_element)
-        if isinstance(value, tuple):
-            return tuple(rolled), num
-        else:
+        if isinstance(value, list):
             return rolled, num
+        elif _isnamedtuple(value):
+            return type(value)(*rolled), num
+        else:
+            return tuple(rolled), num
     elif isinstance(value, dict):
         rolled = {}
         num = 0
@@ -72,7 +78,9 @@ def roll_torch_tensors(value, unrolled):
 def track(value):
     if isinstance(value, torch.Tensor):
         return value.detach().clone().requires_grad_(True)
-    if isinstance(value, tuple):
+    if _isnamedtuple(value):
+        return type(value)(*map(track, value))
+    elif isinstance(value, tuple):
         return tuple(map(track, value))
     elif isinstance(value, list):
         return list(map(track, value))
