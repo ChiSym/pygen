@@ -1,3 +1,25 @@
+# TODO replace with thread-local version using threading.local()
+gentrace = None
+class Inline:
+    pass
+inline = None
+
+class AppliedGenFn:
+    def __init__(self, callee, args):
+        self.callee = callee
+        self.args = args
+    def __matmul__(self, address):
+        global gentrace
+        return gentrace(self.callee, self.args, address=address)
+
+def set_gentrace(gentrace_new):
+    global gentrace
+    gentrace = gentrace_new
+    
+
+
+###########
+
 class GenFn:
 
     def simulate(self, args):
@@ -17,6 +39,9 @@ class GenFn:
         (trace, weight) = self.generate(args, constraints)
         retval = trace.get_retval()
         return (weight, retval)
+
+    def __call__(self, *args):
+        return AppliedGenFn(self, args)
 
 
 class Trace:
