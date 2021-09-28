@@ -4,7 +4,6 @@ from pygen.dml.lang import gendml
 from pygen.dists import bernoulli
 from pygen.inflib.importance import importance_sampling_custom_proposal
 from pygen.inflib.importance import importance_resampling_custom_proposal
-from pygen import gentrace
 import torch
 
 Z = addr('z')
@@ -13,10 +12,10 @@ X = addr('x')
 
 @gendml
 def model():
-    z = gentrace(bernoulli, (0.1,), Z)
+    z = bernoulli(0.1) @ Z
     assert z.size() == ()  # a scalar
     x_prob = (0.3 if z else 0.4)
-    x = gentrace(bernoulli, (x_prob,), X)
+    x = bernoulli(x_prob) @ X
 
 
 def ground_truth_marginal_likelihood(x):
@@ -41,12 +40,12 @@ def z_conditional_prob(x):
 
 @gendml
 def uniform_proposal(x):
-    gentrace(bernoulli, (0.5,), Z)
+    bernoulli(0.5) @ Z
 
 
 @gendml
 def exact_proposal(x):
-    gentrace(bernoulli, (z_conditional_prob(x),), Z)
+    bernoulli(z_conditional_prob(x)) @ Z
 
 
 def test_marginal_likelihood_estimates():

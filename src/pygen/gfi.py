@@ -1,24 +1,52 @@
-# TODO replace with thread-local version using threading.local()
-gentrace = None
-class Inline:
-    pass
-inline = None
+import pygen
+import torch
 
 class AppliedGenFn:
     def __init__(self, callee, args):
         self.callee = callee
         self.args = args
     def __matmul__(self, address):
-        global gentrace
-        return gentrace(self.callee, self.args, address=address)
+        global _gentrace
+        return _gentrace(self.callee, self.args, address=address)
+        return pygen.thread_local_storage.gentrace(
+                self.callee, self.args, address=address)
+    def evaluate(self):
+        return self.callee(*self.args)
 
-def set_gentrace(gentrace_new):
-    global gentrace
-    gentrace = gentrace_new
+# TODO delte
+_gentrace = None
+
+def set_gentrace(gentrace):
+    global _gentrace
+    prev = _gentrace
+    _gentrace = gentrace
+    return prev
+    try:
+        prev = pygen.thread_local_storage.gentrace 
+    except AttributeError:
+        prev = None
+    pygen.thread_local_storage.gentrace = gentrace
+    return prev
+
+def get_gentrace():
+    global _gentrace
+    return _gentrace
+    try:
+        return pygen.thread_local_storage.gentrace 
+    except AttributeError:
+        return None
+
+
+class TorchModule:
+    def __init__(self, obj):
+        self._wrapped_obj = obj
+    def __getattr__(self, attr):
+        if attr in self.__dict__:
+            return getattr(self, attr)
+        return getattr(self._wrapped_obj, attr)
+    def __call__(self, *args):
+        return AppliedGenFn(self._wrapped_obj, args) # NOTE rename AppliedGenFn
     
-
-
-###########
 
 class GenFn:
 

@@ -1,5 +1,4 @@
-from pygen.dml.lang import gendml
-from pygen import gentrace
+from pygen.dml.lang import gendml, inline
 from pygen.choice_address import addr
 from pygen.gradients import supports_ad
 
@@ -71,8 +70,8 @@ def test_choice_gradients_no_calls():
 
 @gendml
 def f2(x, y, compound):
-    z1 = gentrace(f1, (x, y, compound))  # spliced call
-    z2 = gentrace(f1, (x, y, compound), addr('z')) # not spliced call
+    z1 = f1(x, y, compound) @ inline  # spliced call
+    z2 = f1(x, y, compound) @ addr('z') # not spliced call
     return z1, z2
 
 

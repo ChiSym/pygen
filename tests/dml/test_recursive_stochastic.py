@@ -1,8 +1,7 @@
-from pygen.dml.lang import gendml
+from pygen.dml.lang import gendml, inline
 from pygen.dists import bernoulli
 from pygen.choice_address import addr
 from pygen.choice_trie import ChoiceTrie, MutableChoiceTrie
-from pygen.gfi import inline, AppliedGenFn
 import torch
 
 DONE = 'done'

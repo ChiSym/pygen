@@ -1,8 +1,8 @@
-from pygen.dml.lang import gendml
+from pygen.dml.lang import gendml, inline
 from pygen.dists import bernoulli, normal
 from pygen.choice_address import addr
 from pygen.choice_trie import MutableChoiceTrie
-from pygen import gentrace
+from pygen.gfi import TorchModule
 import torch
 import torch.nn as nn
 
@@ -20,7 +20,8 @@ class ExampleTorchModule(nn.Module):
         return self.fc21(hidden)
 
 
-network = ExampleTorchModule(2, 3, 4)
+network = TorchModule(ExampleTorchModule(2, 3, 4))
+assert isinstance(network, TorchModule)
 
 
 Z = addr('z')
@@ -29,20 +30,20 @@ X = addr('x')
 
 @gendml
 def g(mu):
-    z = gentrace(normal, (mu, torch.tensor(1.0)), addr())
+    z = normal(mu, torch.tensor(1.0)) @ addr()
     return z
 
 
 @gendml
 def f(mu):
     assert len(mu) == 2
-    z = gentrace(g, (mu,), Z)
+    z = g(mu) @ Z
     assert isinstance(z, torch.Tensor)
     assert z.size() == (2,)
-    output = gentrace(network, (z,))
+    output = network(z) @ inline
     assert isinstance(output, torch.Tensor)
     assert output.size() == (4,)
-    x = gentrace(normal, (output, torch.tensor(1.0)), X)
+    x = normal(output, torch.tensor(1.0)) @ X
     assert isinstance(x, torch.Tensor)
     assert x.size() == (4,)
     return z
@@ -52,7 +53,7 @@ def get_expected_score(mu, z, x):
     with torch.inference_mode(True):
         score = (
             torch.distributions.normal.Normal(mu, 1.0).log_prob(z).sum() +
-            torch.distributions.normal.Normal(network(z), 1.0).log_prob(x).sum())
+            torch.distributions.normal.Normal(network(z).evaluate(), 1.0).log_prob(x).sum())
     return score
 
 
@@ -82,7 +83,7 @@ def test_generate():
     assert torch.allclose(trace.get_retval(), z)
     assert torch.allclose(trace.get_score(), get_expected_score(mu, z, x))
     with torch.inference_mode(True):
-        expected_log_weight = torch.distributions.normal.Normal(network(z), 1.0).log_prob(x).sum()
+        expected_log_weight = torch.distributions.normal.Normal(network(z).evaluate(), 1.0).log_prob(x).sum()
     assert torch.allclose(log_weight, expected_log_weight)
 
 
@@ -135,14 +136,14 @@ def test_choice_gradients():
     z_proxy = z.detach().clone().requires_grad_(True)
     torch.autograd.backward(
         [torch.distributions.normal.Normal(mu, 1.0).log_prob(z_proxy).sum() +
-         torch.distributions.normal.Normal(network(z_proxy), 1.0).log_prob(x).sum(), z_proxy],
+         torch.distributions.normal.Normal(network(z_proxy).evaluate(), 1.0).log_prob(x).sum(), z_proxy],
         grad_tensors=[torch.tensor(1.0), retgrad])
     expected_z_grad = z_proxy.grad
     f.get_torch_nn_module().zero_grad()
 
     # compute expected_x_grad
     x_proxy = x.detach().clone().requires_grad_(True)
-    torch.autograd.backward(torch.distributions.normal.Normal(network(z), 1.0).log_prob(x_proxy).sum())
+    torch.autograd.backward(torch.distributions.normal.Normal(network(z).evaluate(), 1.0).log_prob(x_proxy).sum())
     expected_x_grad = x_proxy.grad
     f.get_torch_nn_module().zero_grad()
 
@@ -180,7 +181,7 @@ def test_accumulate_param_gradients():
     network.requires_grad_(True)
     torch.autograd.backward(
         torch.distributions.normal.Normal(mu, 1.0).log_prob(z).sum() +
-        torch.distributions.normal.Normal(network(z), 1.0).log_prob(x).sum())
+        torch.distributions.normal.Normal(network(z).evaluate(), 1.0).log_prob(x).sum())
     expected_param_grads = {}
     for (name, param) in f.get_torch_nn_module().named_parameters():
         expected_param_grads[name] = param.grad * scale_factor
