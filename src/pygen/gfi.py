@@ -6,21 +6,12 @@ class AppliedGenFn:
         self.callee = callee
         self.args = args
     def __matmul__(self, address):
-        global _gentrace
-        return _gentrace(self.callee, self.args, address=address)
         return pygen.thread_local_storage.gentrace(
                 self.callee, self.args, address=address)
     def evaluate(self):
         return self.callee(*self.args)
 
-# TODO delte
-_gentrace = None
-
 def set_gentrace(gentrace):
-    global _gentrace
-    prev = _gentrace
-    _gentrace = gentrace
-    return prev
     try:
         prev = pygen.thread_local_storage.gentrace 
     except AttributeError:
@@ -29,8 +20,6 @@ def set_gentrace(gentrace):
     return prev
 
 def get_gentrace():
-    global _gentrace
-    return _gentrace
     try:
         return pygen.thread_local_storage.gentrace 
     except AttributeError:
