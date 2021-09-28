@@ -21,8 +21,6 @@ class ExampleTorchModule(nn.Module):
 
 
 network = TorchModule(ExampleTorchModule(2, 3, 4))
-assert isinstance(network, TorchModule)
-
 
 Z = addr('z')
 X = addr('x')
@@ -53,7 +51,7 @@ def get_expected_score(mu, z, x):
     with torch.inference_mode(True):
         score = (
             torch.distributions.normal.Normal(mu, 1.0).log_prob(z).sum() +
-            torch.distributions.normal.Normal(network(z).evaluate(), 1.0).log_prob(x).sum())
+            torch.distributions.normal.Normal(network.forward(z), 1.0).log_prob(x).sum())
     return score
 
 
@@ -83,7 +81,7 @@ def test_generate():
     assert torch.allclose(trace.get_retval(), z)
     assert torch.allclose(trace.get_score(), get_expected_score(mu, z, x))
     with torch.inference_mode(True):
-        expected_log_weight = torch.distributions.normal.Normal(network(z).evaluate(), 1.0).log_prob(x).sum()
+        expected_log_weight = torch.distributions.normal.Normal(network.forward(z), 1.0).log_prob(x).sum()
     assert torch.allclose(log_weight, expected_log_weight)
 
 
@@ -136,14 +134,14 @@ def test_choice_gradients():
     z_proxy = z.detach().clone().requires_grad_(True)
     torch.autograd.backward(
         [torch.distributions.normal.Normal(mu, 1.0).log_prob(z_proxy).sum() +
-         torch.distributions.normal.Normal(network(z_proxy).evaluate(), 1.0).log_prob(x).sum(), z_proxy],
+         torch.distributions.normal.Normal(network.forward(z_proxy), 1.0).log_prob(x).sum(), z_proxy],
         grad_tensors=[torch.tensor(1.0), retgrad])
     expected_z_grad = z_proxy.grad
     f.get_torch_nn_module().zero_grad()
 
     # compute expected_x_grad
     x_proxy = x.detach().clone().requires_grad_(True)
-    torch.autograd.backward(torch.distributions.normal.Normal(network(z).evaluate(), 1.0).log_prob(x_proxy).sum())
+    torch.autograd.backward(torch.distributions.normal.Normal(network.forward(z), 1.0).log_prob(x_proxy).sum())
     expected_x_grad = x_proxy.grad
     f.get_torch_nn_module().zero_grad()
 
@@ -181,7 +179,7 @@ def test_accumulate_param_gradients():
     network.requires_grad_(True)
     torch.autograd.backward(
         torch.distributions.normal.Normal(mu, 1.0).log_prob(z).sum() +
-        torch.distributions.normal.Normal(network(z).evaluate(), 1.0).log_prob(x).sum())
+        torch.distributions.normal.Normal(network.forward(z), 1.0).log_prob(x).sum())
     expected_param_grads = {}
     for (name, param) in f.get_torch_nn_module().named_parameters():
         expected_param_grads[name] = param.grad * scale_factor

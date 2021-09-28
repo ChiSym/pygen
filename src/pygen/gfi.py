@@ -1,15 +1,13 @@
 import pygen
 import torch
 
-class AppliedGenFn:
+class Call:
     def __init__(self, callee, args):
         self.callee = callee
         self.args = args
     def __matmul__(self, address):
         return pygen.thread_local_storage.gentrace(
                 self.callee, self.args, address=address)
-    def evaluate(self):
-        return self.callee(*self.args)
 
 def set_gentrace(gentrace):
     try:
@@ -34,7 +32,7 @@ class TorchModule:
             return getattr(self, attr)
         return getattr(self._wrapped_obj, attr)
     def __call__(self, *args):
-        return AppliedGenFn(self._wrapped_obj, args) # NOTE rename AppliedGenFn
+        return Call(self._wrapped_obj, args)
     
 
 class GenFn:
@@ -58,7 +56,7 @@ class GenFn:
         return (weight, retval)
 
     def __call__(self, *args):
-        return AppliedGenFn(self, args)
+        return Call(self, args)
 
 
 class Trace:

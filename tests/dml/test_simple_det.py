@@ -1,6 +1,6 @@
 from pygen.dml.lang import gendml
 from pygen.choice_trie import MutableChoiceTrie, ChoiceTrie
-from pygen.gfi import AppliedGenFn
+from pygen.gfi import Call
 import torch
 
 
@@ -10,7 +10,7 @@ def f(a, b):
 
 
 def test_call():
-    assert isinstance(f(1, 3), AppliedGenFn)
+    assert isinstance(f(1, 3), Call)
 
 
 def test_simulate():
