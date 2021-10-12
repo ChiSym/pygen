@@ -1,3 +1,5 @@
+import ray
+
 from ..gfi import GenFn, Trace
 from ..choice_address import ChoiceAddress
 from ..choice_trie import ChoiceTrie, MutableChoiceTrie
@@ -9,6 +11,7 @@ import torch
 
 # for splicing
 inline = None
+
 
 def _splice_dml_call(callee, args, gentrace):
     if not isinstance(callee, DMLGenFn):
@@ -63,7 +66,6 @@ class DMLGenFn(GenFn):
         log_weight = torch.tensor(0.0)
 
         def gentrace(callee, callee_args, address=None):
-            print(f'generate callee: {callee}')
             assert (address is None) or isinstance(address, ChoiceAddress)
             if isinstance(callee, GenFn):
                 if address is None:
@@ -77,7 +79,6 @@ class DMLGenFn(GenFn):
             if isinstance(callee, torch.nn.Module):
                 self._record_torch_nn_module(callee)
                 return callee(*callee_args)
-            print(callee.__class__)
             raise RuntimeError(f'Unknown type of generative function: {callee}')
 
         prev_gentrace = set_gentrace(gentrace)
@@ -87,6 +88,12 @@ class DMLGenFn(GenFn):
 
         return (trace, log_weight)
 
+    def generate_multi(self, args, constraints, n):
+        traces_and_weights = []
+        for i in range(n):
+            trace, weight = self.generate(args, constraints)
+            traces_and_weights.append((trace, weight))
+        return traces_and_weights
 
 
 def torch_autograd_function_from_trace(trace):

@@ -1,5 +1,7 @@
 import pygen
 import torch
+from abc import ABC, abstractmethod
+
 
 class Call:
     def __init__(self, callee, args):
@@ -9,6 +11,7 @@ class Call:
         return pygen.thread_local_storage.gentrace(
                 self.callee, self.args, address=address)
 
+
 def set_gentrace(gentrace):
     try:
         prev = pygen.thread_local_storage.gentrace 
@@ -16,6 +19,7 @@ def set_gentrace(gentrace):
         prev = None
     pygen.thread_local_storage.gentrace = gentrace
     return prev
+
 
 def get_gentrace():
     try:
@@ -35,11 +39,13 @@ class TorchModule:
         return Call(self._wrapped_obj, args)
     
 
-class GenFn:
+class GenFn(ABC):
 
+    @abstractmethod
     def simulate(self, args):
         raise NotImplementedError()
 
+    @abstractmethod
     def generate(self, args, constraints):
         raise NotImplementedError()
 
