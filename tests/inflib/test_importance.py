@@ -1,22 +1,28 @@
+import concurrent.futures
+import torch
+# torch.multiprocessing.set_sharing_strategy('file_system')
+
 from pygen.choice_trie import MutableChoiceTrie
 from pygen.choice_address import addr
 from pygen.dml.lang import gendml
 from pygen.dists import bernoulli
 from pygen.inflib.importance import importance_sampling_custom_proposal
 from pygen.inflib.importance import importance_resampling_custom_proposal
-from pygen import gentrace
-import torch
+from pygen.inflib.importance import importance_sampling_custom_proposal_multiprocessing
+
 
 Z = addr('z')
 X = addr('x')
 
 
-@gendml
-def model():
-    z = gentrace(bernoulli, (0.1,), Z)
+def _model():
+    z = bernoulli(0.1) @ Z
     assert z.size() == ()  # a scalar
     x_prob = (0.3 if z else 0.4)
-    x = gentrace(bernoulli, (x_prob,), X)
+    bernoulli(x_prob) @ X
+
+
+model = gendml(_model)
 
 
 def ground_truth_marginal_likelihood(x):
@@ -39,14 +45,18 @@ def z_conditional_prob(x):
     return z_true_prob / (z_true_prob + z_false_prob)
 
 
-@gendml
-def uniform_proposal(x):
-    gentrace(bernoulli, (0.5,), Z)
+def _uniform_proposal(x):
+    bernoulli(0.5) @ Z
 
 
-@gendml
-def exact_proposal(x):
-    gentrace(bernoulli, (z_conditional_prob(x),), Z)
+uniform_proposal = gendml(_uniform_proposal)
+
+
+def _exact_proposal(x):
+    bernoulli(z_conditional_prob(x)) @ Z
+
+
+exact_proposal = gendml(_exact_proposal)
 
 
 def test_marginal_likelihood_estimates():
@@ -73,3 +83,9 @@ def test_marginal_likelihood_estimates():
     (_, _, lml_estimate) = importance_sampling_custom_proposal(
         model, (), observations, uniform_proposal, (x,), 1000, verbose=False)
     assert torch.isclose(lml_estimate, lml_true, atol=1e-2)
+
+    with torch.multiprocessing.Pool() as pool:
+        (_, _, lml_estimate) = importance_sampling_custom_proposal_multiprocessing(
+            model, (), observations, uniform_proposal, (x,), 10000, pool, verbose=False)
+    assert torch.isclose(lml_estimate, lml_true, atol=1e-2)
+

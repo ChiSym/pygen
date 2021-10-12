@@ -1,8 +1,7 @@
 from pygen.choice_address import addr
 from pygen.choice_trie import MutableChoiceTrie
-from pygen.dml.lang import gendml
+from pygen.dml.lang import gendml, inline
 from pygen.dists import bernoulli
-from pygen import gentrace
 import torch
 
 torch_false = torch.tensor(0.0)
@@ -11,11 +10,11 @@ torch_true = torch.tensor(1.0)
 
 @gendml
 def f(prob):
-    if gentrace(bernoulli, (prob,), addr('done')):
+    if bernoulli(prob) @ addr('done'):
         return torch.tensor(1)
     else:
-        left_result = gentrace(f, (prob,), addr('left'))
-        right_result = gentrace(f, (prob,), addr('right'))
+        left_result = f(prob) @ addr('left')
+        right_result = f(prob) @ addr('right')
         return left_result + right_result + torch.tensor(1)
 
 

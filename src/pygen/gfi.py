@@ -1,8 +1,51 @@
-class GenFn:
+import pygen
+import torch
+from abc import ABC, abstractmethod
 
+
+class Call:
+    def __init__(self, callee, args):
+        self.callee = callee
+        self.args = args
+    def __matmul__(self, address):
+        return pygen.thread_local_storage.gentrace(
+                self.callee, self.args, address=address)
+
+
+def set_gentrace(gentrace):
+    try:
+        prev = pygen.thread_local_storage.gentrace 
+    except AttributeError:
+        prev = None
+    pygen.thread_local_storage.gentrace = gentrace
+    return prev
+
+
+def get_gentrace():
+    try:
+        return pygen.thread_local_storage.gentrace 
+    except AttributeError:
+        return None
+
+
+class TorchModule:
+    def __init__(self, obj):
+        self._wrapped_obj = obj
+    def __getattr__(self, attr):
+        if attr in self.__dict__:
+            return getattr(self, attr)
+        return getattr(self._wrapped_obj, attr)
+    def __call__(self, *args):
+        return Call(self._wrapped_obj, args)
+    
+
+class GenFn(ABC):
+
+    @abstractmethod
     def simulate(self, args):
         raise NotImplementedError()
 
+    @abstractmethod
     def generate(self, args, constraints):
         raise NotImplementedError()
 
@@ -17,6 +60,9 @@ class GenFn:
         (trace, weight) = self.generate(args, constraints)
         retval = trace.get_retval()
         return (weight, retval)
+
+    def __call__(self, *args):
+        return Call(self, args)
 
 
 class Trace:

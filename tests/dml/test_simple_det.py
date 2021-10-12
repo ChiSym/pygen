@@ -1,5 +1,6 @@
 from pygen.dml.lang import gendml
 from pygen.choice_trie import MutableChoiceTrie, ChoiceTrie
+from pygen.gfi import Call
 import torch
 
 
@@ -9,9 +10,7 @@ def f(a, b):
 
 
 def test_call():
-    assert f(1, 3) == 4
-    assert f('a', 'b') == 'ab'
-    assert f([1], [2]) == [1, 2]
+    assert isinstance(f(1, 3), Call)
 
 
 def test_simulate():

@@ -1,39 +1,23 @@
+import ray
+
 from ..gfi import GenFn, Trace
 from ..choice_address import ChoiceAddress
 from ..choice_trie import ChoiceTrie, MutableChoiceTrie
 import pygen.gradients as gradients
+from pygen.gfi import set_gentrace, TorchModule
 
 from functools import wraps
 import torch
 
-
-# inject variables into a function's scope:
-def _inject_variables(context, func):
-    @wraps(func)
-    def new_func(*args, **kwargs):
-        func_globals = func.__globals__
-        saved_values = func_globals.copy()
-        func_globals.update(context)
-        try:
-            result = func(*args, **kwargs)
-        finally:
-            for (var, val) in context.items():
-                if var in saved_values:
-                    func_globals.update({var: saved_values[var]})
-                else:
-                    del func_globals[var]
-        return result
-
-    return new_func
+# for splicing
+inline = None
 
 
 def _splice_dml_call(callee, args, gentrace):
-    if isinstance(callee, DMLGenFn):
-        p = _inject_variables({'gentrace': gentrace}, callee.p)
-    else:
+    if not isinstance(callee, DMLGenFn):
         raise RuntimeError('Address required when calling a non-DML '
             f'generative function: {callee}')
-    return p(*args)
+    return callee.p(*args)
 
 
 class DMLGenFn(GenFn):
@@ -69,9 +53,11 @@ class DMLGenFn(GenFn):
             else:
                 raise RuntimeError(f'Unknown type of generative function: {callee}')
 
-        p = _inject_variables({'gentrace': gentrace}, self.p)
+        prev_gentrace = set_gentrace(gentrace)
         with torch.inference_mode(mode=True):
-            trace.retval = p(*args)
+            trace.retval = self.p(*args)
+        set_gentrace(prev_gentrace)
+
         return trace
 
     def generate(self, args, constraints):
@@ -95,14 +81,19 @@ class DMLGenFn(GenFn):
                 return callee(*callee_args)
             raise RuntimeError(f'Unknown type of generative function: {callee}')
 
-        p = _inject_variables({'gentrace': gentrace}, self.p)
+        prev_gentrace = set_gentrace(gentrace)
         with torch.inference_mode(mode=True):
-            trace.retval = p(*args)
+            trace.retval = self.p(*args)
+        set_gentrace(prev_gentrace)
+
         return (trace, log_weight)
 
-    def __call__(self, *args):
-        trace = self.simulate(args)
-        return trace.get_retval()
+    def generate_multi(self, args, constraints, n):
+        traces_and_weights = []
+        for i in range(n):
+            trace, weight = self.generate(args, constraints)
+            traces_and_weights.append((trace, weight))
+        return traces_and_weights
 
 
 def torch_autograd_function_from_trace(trace):
@@ -275,9 +266,10 @@ class DMLTrace(Trace):
                 return callee(*callee_args)
             raise RuntimeError(f'Unknown type of generative function: {callee}')
 
-        p = _inject_variables({'gentrace': gentrace}, self.get_gen_fn().p)
+        prev_gentrace = set_gentrace(gentrace)
         with torch.inference_mode(mode=True):
-            new_trace.retval = p(*args)
+            new_trace.retval = self.gen_fn.p(*args)
+        set_gentrace(prev_gentrace)
 
         log_weight -=  DMLTrace._process_deleted_subtraces(
             discard, self.subtraces_trie, new_trace.subtraces_trie)
@@ -331,11 +323,11 @@ class DMLTrace(Trace):
             def gentrace(callee, callee_args, address=None):
                 return self._gradients_gentrace(callee, callee_args, address, False, score, gentrace)
 
-            p = _inject_variables({'gentrace': gentrace}, self.gen_fn.p)
-
             args = self.get_args()
             args_tracked = gradients.track(args)
-            retval = p(*args_tracked)
+            prev_gentrace = set_gentrace(gentrace)
+            retval = self.gen_fn.p(*args_tracked)
+            set_gentrace(prev_gentrace)
 
             inputs = gradients.unroll_torch_tensors(args_tracked)
             outputs, output_grads = DMLTrace._get_torch_outputs_and_grads(score, retval, retval_grad)
@@ -351,11 +343,11 @@ class DMLTrace(Trace):
             def gentrace(callee, callee_args, address=None):
                 return self._gradients_gentrace(callee, callee_args, address, True, score, gentrace)
 
-            p = _inject_variables({'gentrace': gentrace}, self.gen_fn.p)
-
             args = self.get_args()
             args_tracked = gradients.track(args)
-            retval = p(*args_tracked)
+            prev_gentrace = set_gentrace(gentrace)
+            retval = self.gen_fn.p(*args_tracked)
+            set_gentrace(prev_gentrace)
 
             # multiply the existing gradient by 1/scale_factor
             for param in self.get_gen_fn().get_torch_nn_module().parameters():

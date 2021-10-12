@@ -7,8 +7,37 @@ def _check_is_primitive_and_get_choice(choice_trie):
         raise RuntimeError(f'choice_trie is not primitive: {choice_trie}')
     return choice_trie.get_choice()
 
+
 class TorchDist(GenFn):
-    pass
+
+    def __init__(self, dist_class):
+        self.dist_class = dist_class
+
+    def __repr__(self):
+        return f'pygen.TorchDist({repr(self.dist_class)})'
+
+    def get_dist_class(self):
+        return self.dist_class
+
+    def simulate(self, args):
+        dist = self.dist_class(*args)
+        value = dist.sample()
+        lpdf = dist.log_prob(value).sum()
+        return TorchDistTrace(self, args, value, lpdf)
+
+    def generate(self, args, choice_trie):
+        dist = self.dist_class(*args)
+        if choice_trie:
+            value = _check_is_primitive_and_get_choice(choice_trie)
+        else:
+            value = dist.sample()
+        lpdf = dist.log_prob(value).sum()
+        if choice_trie:
+            log_weight = lpdf
+        else:
+            log_weight = torch.tensor(0.0, requires_grad=False)
+        return TorchDistTrace(self, args, value, lpdf), log_weight
+
 
 class TorchDistTrace(Trace):
 
@@ -84,40 +113,5 @@ class TorchDistTrace(Trace):
         raise NotImplementedError()
 
 
-def torch_dist_to_gen_fn(dist_class):
-
-    class gen_fn_class(TorchDist):
-
-        def __init__(self):
-            self.dist_class = dist_class
-
-        def __repr__(self):
-            return f'pygen.dists.torch_dist_to_gen_fn({repr(dist_class)})'
-
-        def get_dist_class(self):
-            return self.dist_class
-
-        def simulate(self, args):
-            dist = dist_class(*args)
-            value = dist.sample()
-            lpdf = dist.log_prob(value).sum()
-            return TorchDistTrace(self, args, value, lpdf)
-    
-        def generate(self, args, choice_trie):
-            dist = dist_class(*args)
-            if choice_trie:
-                value = _check_is_primitive_and_get_choice(choice_trie)
-            else:
-                value = dist.sample()
-            lpdf = dist.log_prob(value).sum()
-            if choice_trie:
-                log_weight = lpdf
-            else:
-                log_weight = torch.tensor(0.0, requires_grad=False)
-            return (TorchDistTrace(self, args, value, lpdf), log_weight)
-
-    return gen_fn_class()
-
-
-normal = torch_dist_to_gen_fn(torch.distributions.normal.Normal)
-bernoulli = torch_dist_to_gen_fn(torch.distributions.bernoulli.Bernoulli)
+normal = TorchDist(torch.distributions.normal.Normal)
+bernoulli = TorchDist(torch.distributions.bernoulli.Bernoulli)

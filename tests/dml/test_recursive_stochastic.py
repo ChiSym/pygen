@@ -1,8 +1,7 @@
-from pygen.dml.lang import gendml
+from pygen.dml.lang import gendml, inline
 from pygen.dists import bernoulli
 from pygen.choice_address import addr
 from pygen.choice_trie import ChoiceTrie, MutableChoiceTrie
-from pygen import gentrace
 import torch
 
 DONE = 'done'
@@ -10,16 +9,16 @@ DONE = 'done'
 
 @gendml
 def f(prob, i):
-    done = gentrace(bernoulli, (prob,), addr((DONE, i)))
+    done = bernoulli(prob) @ addr((DONE, i))
     if done:
         return i
     else:
-        return gentrace(f, (prob, i+1))
+        return f(prob, i+1) @ inline
 
 
 @gendml
 def g(prob):
-    return gentrace(f, (prob, 1))
+    return f(prob, 1) @ inline
 
 
 def check_choices(n, choices):
@@ -109,3 +108,6 @@ def test_update():
     assert isinstance(discard, ChoiceTrie)
     assert len(discard.asdict()) == 1
     assert discard[addr((DONE, 1))] == torch.tensor(1.0)
+
+test_generate()
+test_update()
