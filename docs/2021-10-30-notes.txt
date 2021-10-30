@@ -1,0 +1,26 @@
+Selection API
+=============
+
+- ChoiceSelection(addr1, addr2, addr3) with alias select
+
+- __or__(self, other: ChoiceSelection) -> ChoiceSelection
+
+- __and__(self, other: ChoiceSelection) -> ChoiceSelection
+
+- __neg__(self) -> ChoiceSelection
+
+- __contains__(self, address: ChoiceAddress) -> bool
+
+- get_subselection(self, address: ChoiceAddress, strict=True) -> ChoiceSelection
+
+    note: this should always succeed when strict=False, even if this is a complement
+
+- is_iterable(self) -> bool
+
+    returns true if and only if __iter__ is guaranteed not to crash
+
+- __iter__(self)
+
+    returns an iterator over (single-element-address, selection) pairs
+
+    note: this will crash if self is iterable, but should succeed otherwise
