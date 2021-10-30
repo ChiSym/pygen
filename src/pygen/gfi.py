@@ -1,24 +1,74 @@
-class GenFn:
+import pygen
+import torch
+from abc import ABC, abstractmethod
 
+
+class Call:
+    def __init__(self, callee, args):
+        self.callee = callee
+        self.args = args
+    def __matmul__(self, address):
+        return pygen.thread_local_storage.gentrace(
+                self.callee, self.args, address=address)
+
+
+def set_gentrace(gentrace):
+    try:
+        prev = pygen.thread_local_storage.gentrace 
+    except AttributeError:
+        prev = None
+    pygen.thread_local_storage.gentrace = gentrace
+    return prev
+
+
+def get_gentrace():
+    try:
+        return pygen.thread_local_storage.gentrace 
+    except AttributeError:
+        return None
+
+
+class TorchModule:
+    def __init__(self, obj):
+        self._wrapped_obj = obj
+    def __getattr__(self, attr):
+        if attr in self.__dict__:
+            return getattr(self, attr)
+        return getattr(self._wrapped_obj, attr)
+    def __call__(self, *args):
+        return Call(self._wrapped_obj, args)
+    
+
+class GenFn(ABC):
+
+    @abstractmethod
     def simulate(self, args):
         raise NotImplementedError()
 
+    @abstractmethod
     def generate(self, args, constraints):
         raise NotImplementedError()
 
     def propose(self, args):
         trace = self.simulate(args)
-        choices = trace.get_choices()
+        choice_trie = trace.get_choice_trie()
         weight = trace.get_score()
         retval = trace.get_retval()
-        return (choices, weight, retval)
+        return (choice_trie, weight, retval)
 
     def assess(self, args, constraints):
         (trace, weight) = self.generate(args, constraints)
         retval = trace.get_retval()
         return (weight, retval)
 
+    def __call__(self, *args):
+        return Call(self, args)
+
+
 class Trace:
+
+    def get_gen_fn(self):
+        raise NotImplementedError()
 
     def get_args(self):
         raise NotImplementedError()
@@ -29,16 +79,16 @@ class Trace:
     def get_score(self):
         raise NotImplementedError()
 
-    def get_choices(self):
+    def get_choice_trie(self):
         raise NotImplementedError()
 
-    def update(self, args, change_hints, constraints):
+    def update(self, args, constraints):
         raise NotImplementedError()
 
-    def regenerate(self, args, change_hints, selection):
+    def regenerate(self, args, selection):
         raise NotImplementedError()
 
-    def accum_param_grads(self, retgrad, scale_factor):
+    def accumulate_param_gradients(self, retgrad, scale_factor):
         raise NotImplementedError()
 
     def choice_gradients(self, selection, retgrad):

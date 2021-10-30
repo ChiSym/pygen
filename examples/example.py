@@ -1,6 +1,8 @@
+from pygen import gentrace
 from pygen.dml.lang import gendml
-from pygen.gfi import Trace, GenFn
 from pygen.dists import bernoulli, normal
+from pygen.choice_address import addr
+from pygen.choice_trie import MutableChoiceTrie
 import torch
 import torch.nn as nn
 import timeit
@@ -23,7 +25,7 @@ class LikelihoodModel(nn.Module):
 
 @gendml
 def prior(zdim):
-    z = gentrace(normal, (torch.zeros((zdim,)), 1.0), "z")
+    z = gentrace(normal, (torch.zeros((zdim,)), 1.0), addr("z"))
     return z
 
 likelihood = LikelihoodModel(10, 3)
@@ -32,7 +34,7 @@ likelihood = LikelihoodModel(10, 3)
 def model(z_dim):
     z = gentrace(prior, (z_dim,))
     pixel_probs = gentrace(likelihood, (z,))
-    binary_img = gentrace(bernoulli, (pixel_probs,), "img")
+    binary_img = gentrace(bernoulli, (pixel_probs,), addr("img"))
     return binary_img
 
 # Python call
@@ -42,7 +44,7 @@ assert len(binary_img) == likelihood.fc21.out_features
 
 # simulate
 trace = model.simulate((10,))
-choices = trace.get_choices()
+choices = trace.get_choice_trie()
 retval = trace.get_retval()
 score = trace.get_score()
 print(f"score: {score}")
@@ -50,37 +52,24 @@ print(f"choices: {choices}")
 print(f"retval: {retval}")
 
 # generate
-(trace, log_weight) = model.generate((10,), {"img" : torch.zeros((5,))})
-choices = trace.get_choices()
+constraints = MutableChoiceTrie()
+img_constraint = MutableChoiceTrie()
+img_constraint.set_choice(torch.zeros((5,)))
+constraints.set_subtrie(addr("img"), img_constraint)
+(trace, log_weight) = model.generate((10,), constraints)
+choices = trace.get_choice_trie()
 print(f"choices: {choices}, log_weight: {log_weight}")
 
 # update
-(new_trace, log_weight, discard) = trace.update((10,), {"z" : torch.zeros((10,))})
-new_choices = new_trace.get_choices()
+update_choices = MutableChoiceTrie()
+z_update = MutableChoiceTrie()
+z_update.set_choice(torch.zeros((10,)))
+update_choices.set_subtrie(addr("z"), z_update)
+(new_trace, log_weight, discard) = trace.update((10,), update_choices)
+new_choices = new_trace.get_choice_trie()
 print(f"new_choices: {new_choices}, log_weight: {log_weight}, discard: {discard}")
 
-# choice_gradients
-(arg_grads, choice_values, choice_grads) = trace.choice_gradients(set(["z", "img"]), torch.zeros((5,)))
-print(f"arg_grads: {arg_grads}, choice_values: {choice_values}, choice_grads: {choice_grads}")
-
-module = model.get_torch_nn_module()
-
-for param in module.parameters():
-    assert param.grad is None or torch.equal(param.grad, torch.zeros_like(param))
-
-# accumulate param gradients
-arg_grads = trace.accumulate_param_gradients(torch.zeros((5,)), 1.0)
-print(f"arg_grads: {arg_grads}")
-
-for param in module.parameters():
-    assert param.grad is not None and not torch.equal(param.grad, torch.zeros_like(param))
-
-module.zero_grad()
-
-for param in module.parameters():
-    assert param.grad is not None and torch.equal(param.grad, torch.zeros_like(param))
-
 n = 1000
-elapsed = timeit.timeit(lambda: trace.update((10,), {"z" : torch.zeros((10,))}), number=n)
+elapsed = timeit.timeit(lambda: trace.update((10,), update_choices), number=n)
 print(f"updates per second: {n/elapsed}")
 print(elapsed)

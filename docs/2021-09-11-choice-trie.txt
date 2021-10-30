@@ -1,0 +1,69 @@
+ChoiceTrie API
+==============
+
+- has_choice(self)
+
+  Return True if self has zero subtries and exactly only choice stored
+  under addr().
+
+- get_choice(self)
+
+  Return the choice if self.has_choice(), otherwise raise error.
+
+- has_subtrie(self, address)
+
+  Return True if self has a subtrie under the given address.
+
+- get_subtrie(self, address, strict=None)
+
+  If self.has_subtrie(address), then the subtrie at the address is returned,
+  otherwise an error is thrown.
+
+  The parameter strict can be set to False tor request that, in the case
+  there is no subtrie at the address, a fresh empty ChoiceTrie is returned
+  instead of an error.
+
+- __getitem__(self, address)
+
+  Returns the choice at the address if it exists, otherwise raises an error.
+
+- subtries(self)
+
+  Returns an iterator over all (address, subtrie) pairs such that
+  self.get_subtrie(address) == subtrie.
+
+- choices(self)
+
+  Returns an iterator over all (address, choice) pairs such that
+  self[address] == choice.
+
+- __bool__(self)
+
+  Return True if self has a choice or has one or more subtries.
+
+MutableChoieTrie API
+====================
+
+- set_subtrie(self, address, subtrie)
+
+  Sets the subtrie at the given address. Always succeeds.
+  If address == addr(), then overwrites self completely with given subtrie.
+
+- set_choice(self, choice)
+
+  Sets self to have the given choice under addr(). Always succeeds.
+  If self has subtries then they will all be deleted.
+
+- __setitem__(self, address, choice)
+
+  Add a choice at the given address. Always succeeds.
+  If self has subtries under address, they will all be deleted.
+
+- update(self, other)
+
+  Merge all choices and subtries from other into self, with other taking
+  precedence.
+
+- MutableChoiceTrie.copy(other)
+
+  Returns a new ChoiceTrie that is a deep copy of other.

@@ -198,7 +198,7 @@ views onto the trace data structure
 
     set_submap!
 
-# selection API
+# ChoiceSelection API
 
     s = select(("a", "b"), ("a", "c"), "d")
     {("a", "b", ...)} U {("a", "c", ...)} U {("d", ...)}
