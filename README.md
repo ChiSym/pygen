@@ -20,9 +20,9 @@
 
 [X] accumulate_param_grads implemented and tested for hierarchical address version
 
-[  ] hierarchical selections implemented and tested
+[~] hierarchical selections implemented and tested
 
-[  ] choice_gradients implemented and tested for the hierarchical address case
+[ ] choice_gradients implemented and tested for the hierarchical address case
 
 (this gives a fully-functional GFI with hierarchical addresses)
 
@@ -39,6 +39,10 @@
 [  ] implement SML backend (static Gen IR)
 
 [  ] implement SML front-end
+
+#### Milestone 5 
+
+[  ] C++ version :)
 
 # MiniPyTorchGenDML
 
@@ -86,27 +90,27 @@ xdg-open htmlcov/index.html
 
 ## Design
 
-The modeling language implements the same GFI as Gen.jl but with a few tweaks (see limitations).
+The modeling language in `src/pygen/dml/` implements the same GFI as Gen.jl but with a few tweaks (see limitations).
 
 The implementation strategy closely mirrors that of the Gen.jl DML.
 
 Users define a DML generative function by applying the `@gendml` decorator to a Python function.
-Within the body of this Python function, the reserve keyword `gentrace` is used to (i) invoke other DML generative functions (no address argument permitted), (ii) sample random choices from probability distributions (third address argument required), and (iii) invoke `torch.nn.Module`s (no address argument permitted).
+Within the body of this Python function, you can
+(i) invoke other DML generative functions, using the syntax `<gen_fn>(<args...>) @ <addr>`, and
+(ii) invoke `torch.nn.Module`s (without an `@` expression).
+Note that unlike in Gen.jl's DML, primitive distributions are also generative functions.
 
 It is straightforward to invoke existing PyTorch modules (instances of `torch.nn.Module`) from a generative function, and to train the parameters of these modules using PyTorch's built-in optimizers (in concert with custom gradient accumulation schemes).
 A DML generative function automatically constructs its own `torch.nn.Module` that has as children all PyTorch modules ever invoked during a traced execution of the generative function, that is accessible via the `get_torch_nn_module()` method.
 
-Because the address namespace is flat, selections are simply Python built-in `set`s and choice maps are simply Python built-in `dict`s.
+The address namespace is hierarchical. You can invoke another DML generative function using the special `pygen.dml.lang.inline` constant as the address after `@` to 'inline' the trace and not introduce a new address namespace for the call.
+Currently, the only implementation of a choice dictionary is `MutableChoiceTrie`.
 
 ## Limitations
 
 This implementation is designed primarily as a concrete reference point to aid in the design of a future version of Gen on top of PyTorch.
 
 Some core features of Gen have not yet been added to this implementation:
-
-- DML generative functions cannot invoke generative functions that are not implemented in the DML.
-
-- DML generative functions can only invoke other DML generative functions via 'splicing' (i.e. without providing an extra address space). As a result there is no hierarchical address space.
 
 - There is no support for change hints or incremental computation, and no combinators have been implemented.
 
@@ -128,10 +132,20 @@ Natural next steps are to:
 
 - Implement a GenList data type, following [GenCollections.jl](https://github.com/probcomp/GenCollections.jl)), and including combinators and incremental computation and automatic differentiation support, using [`pyrsistent`](https://github.com/tobgu/pyrsistent).
 
-- Add support for hierarchical namespaces. This means that new types will likely be needed for selections and choice maps.
+- Implement selections.
 
 - Implement a builder for DAGs that mirrors the static IR builder in Gen.jl (but possibly with improvements to ergonomics to the interface)
 
 - Implement the GFI for these DAGs
 
 - Add more collections data types.
+
+More speculative next steps:
+
+- Implement DML and SML languages, embedded in C++, building on PyTorch's C++ API, called LibTorch. Early experiments by Marco suggest that high-performance multi-threaded Monte Carlo inference on a CPU may work well. Implement a basic learning and inference library in C++.
+
+- Link up the Python implementation with the C++ implementation. TorchScript (via `torch.jit.script`) is a good candidate vehicle for getting user modeling code (at least deterministic fragments, especially for neural networks) imported to be callable by C++ generative functions. A C++ SML (and combinators) implementation (as a builder) can be exposed to Python users. The C++ inference library could also be exposed to Python.
+
+- If a user really wants to just implement models in Python, but the learning and inference library is in C++, an RPC/IPC mechanism could be used to invoke Python generative functions (including DML functions that use arbitrary Python control flow) from the C++ inference library and C++ generative functions.
+
+- Some careful thinking about how to effectively use GPUs at training time is needed. The current trace data type approach does not provide special support for vectorization of models, and vectorization may be fundamentally less powerful for models with latent structure.
