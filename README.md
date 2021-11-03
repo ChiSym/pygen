@@ -44,14 +44,14 @@
 
 [  ] C++ version :)
 
-# MiniPyTorchGenDML
+# pygen-experimental
 
-A minimal Gen dynamic modeling language (DML) implementation in PyTorch.
+An experimental port of Gen to Python, PyTorch, and maybe, C++.
 
 ## Installation
 Clone this repository:
 ```
-git clone git@github.com:probcomp/mini-pygen-dml.git
+git clone git@github.com:probcomp/pygen-experimental.git
 ```
 Create a virtual environment that uses Python 3.6 or above, e.g.:
 ```
