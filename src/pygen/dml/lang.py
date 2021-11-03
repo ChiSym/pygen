@@ -38,16 +38,18 @@ class DMLGenFn(GenFn):
     def simulate(self, args):
         trace = DMLTrace(self, args)
 
-        def gentrace(callee, callee_args, address=None):
-            assert (address is None) or isinstance(address, ChoiceAddress)
+        def gentrace(callee, callee_args, address):
+            assert (address is inline) or isinstance(address, ChoiceAddress)
             if isinstance(callee, GenFn):
-                if address is None:
+                if address is inline:
                     return _splice_dml_call(callee, callee_args, gentrace)
                 else:
                     subtrace = callee.simulate(callee_args)
                     trace._record_subtrace(subtrace, address)
                     return subtrace.get_retval()
             elif isinstance(callee, torch.nn.Module):
+                if address is not inline:
+                    raise RuntimeError(f'Invoking torch.nn.Module at address {address}')
                 self._record_torch_nn_module(callee)
                 return callee(*callee_args)
             else:
@@ -65,10 +67,10 @@ class DMLGenFn(GenFn):
         trace = DMLTrace(self, args)
         log_weight = torch.tensor(0.0)
 
-        def gentrace(callee, callee_args, address=None):
-            assert (address is None) or isinstance(address, ChoiceAddress)
+        def gentrace(callee, callee_args, address=inline):
+            assert (address is inline) or isinstance(address, ChoiceAddress)
             if isinstance(callee, GenFn):
-                if address is None:
+                if address is inline:
                     return _splice_dml_call(callee, callee_args, gentrace)
                 sub_constraints = constraints.get_subtrie(address, strict=False)
                 (subtrace, log_weight_increment) = callee.generate(callee_args, sub_constraints)
@@ -77,6 +79,8 @@ class DMLGenFn(GenFn):
                 trace._record_subtrace(subtrace, address)
                 return subtrace.get_retval()
             if isinstance(callee, torch.nn.Module):
+                if address is not inline:
+                    raise RuntimeError(f'Invoking torch.nn.Module at address {address}')
                 self._record_torch_nn_module(callee)
                 return callee(*callee_args)
             raise RuntimeError(f'Unknown type of generative function: {callee}')
@@ -239,10 +243,10 @@ class DMLTrace(Trace):
         discard = MutableChoiceTrie()
         log_weight = torch.tensor(0.0, requires_grad=False)
 
-        def gentrace(callee, callee_args, address=None):
-            assert (address is None) or isinstance(address, ChoiceAddress)
+        def gentrace(callee, callee_args, address):
+            assert (address is inline) or isinstance(address, ChoiceAddress)
             if isinstance(callee, GenFn):
-                if address is None:
+                if address is inline:
                     return _splice_dml_call(callee, callee_args, gentrace)
                 nonlocal log_weight
                 prev_subtrace = self._get_subtrace_or_none(address)
@@ -262,6 +266,8 @@ class DMLTrace(Trace):
                 new_trace._record_subtrace(subtrace, address)
                 return subtrace.get_retval()
             if isinstance(callee, torch.nn.Module):
+                if address is not inline:
+                    raise RuntimeError(f'Invoking torch.nn.Module at address {address}')
                 self.get_gen_fn()._record_torch_nn_module(callee)
                 return callee(*callee_args)
             raise RuntimeError(f'Unknown type of generative function: {callee}')
@@ -281,7 +287,7 @@ class DMLTrace(Trace):
 
     def _gradients_gentrace(self, callee, callee_args, address, set_param_requires_grad, score, recurse):
         if isinstance(callee, GenFn):
-            if address is None:
+            if address is inline:
                 return _splice_dml_call(callee, callee_args, recurse)
             with torch.inference_mode(mode=True):
                 subtrace = self.subtraces_trie[address]
@@ -320,7 +326,7 @@ class DMLTrace(Trace):
         with torch.inference_mode(mode=False):
             score = torch.tensor(0.0, requires_grad=False)
 
-            def gentrace(callee, callee_args, address=None):
+            def gentrace(callee, callee_args, address):
                 return self._gradients_gentrace(callee, callee_args, address, False, score, gentrace)
 
             args = self.get_args()
@@ -340,7 +346,7 @@ class DMLTrace(Trace):
         with torch.inference_mode(mode=False):
             score = torch.tensor(0.0, requires_grad=False)
 
-            def gentrace(callee, callee_args, address=None):
+            def gentrace(callee, callee_args, address):
                 return self._gradients_gentrace(callee, callee_args, address, True, score, gentrace)
 
             args = self.get_args()

@@ -1,11 +1,13 @@
-from pygen import gentrace
-from pygen.dml.lang import gendml
+import timeit
+import torch
+import torch.nn as nn
+import pygen
+
+from pygen.dml.lang import gendml, inline
 from pygen.dists import bernoulli, normal
 from pygen.choice_address import addr
 from pygen.choice_trie import MutableChoiceTrie
-import torch
-import torch.nn as nn
-import timeit
+from pygen.gfi import TorchModule
 
 # example of a torch.nn.Module:
 
@@ -23,24 +25,24 @@ class LikelihoodModel(nn.Module):
         pixel_probs = torch.sigmoid(self.fc21(hidden))
         return pixel_probs
 
+likelihood = TorchModule(LikelihoodModel(10, 3))
+
 @gendml
 def prior(zdim):
-    z = gentrace(normal, (torch.zeros((zdim,)), 1.0), addr("z"))
+    z = normal(torch.zeros((zdim,)), 1.0) @ addr("z")
     return z
 
-likelihood = LikelihoodModel(10, 3)
 
 @gendml
 def model(z_dim):
-    z = gentrace(prior, (z_dim,))
-    pixel_probs = gentrace(likelihood, (z,))
-    binary_img = gentrace(bernoulli, (pixel_probs,), addr("img"))
+    z = prior(z_dim) @ inline
+    pixel_probs = likelihood(z) @ inline
+    binary_img = bernoulli(pixel_probs) @ addr("img")
     return binary_img
 
-# Python call
-binary_img = model(10)
-assert isinstance(binary_img, torch.Tensor)
-assert len(binary_img) == likelihood.fc21.out_features
+# Python call, does not produce return value like in Gen.jl
+call = model(10)
+assert isinstance(call, pygen.gfi.Call)
 
 # simulate
 trace = model.simulate((10,))
