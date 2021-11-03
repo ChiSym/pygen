@@ -96,7 +96,7 @@ The implementation strategy closely mirrors that of the Gen.jl DML.
 
 Users define a DML generative function by applying the `@gendml` decorator to a Python function.
 Within the body of this Python function, you can
-(i) invoke other DML generative functions, using the syntax `<gen_fn>(<args...>) @ <addr>`, and
+(i) invoke other generative functions, using the syntax `<gen_fn>(<args...>) @ <addr>`, and
 (ii) invoke `torch.nn.Module`s (first, wrap the `torch.nn.Module` instance in a `pygen.gfi.TorchModule` instance e.g. `f`, and then use `f(<args...>) @ inline`).
 Note that unlike in Gen.jl's DML, primitive distributions are also generative functions.
 
