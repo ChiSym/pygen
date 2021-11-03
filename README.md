@@ -90,8 +90,9 @@ xdg-open htmlcov/index.html
 
 ## Design
 
-The modeling language in `src/pygen/dml/` implements the same GFI as Gen.jl but with a few tweaks (see limitations).
+### DML
 
+The modeling language in `src/pygen/dml/` implements the same GFI as Gen.jl but with a few tweaks (see limitations).
 The implementation strategy closely mirrors that of the Gen.jl DML.
 
 Users define a DML generative function by applying the `@gendml` decorator to a Python function.
@@ -102,6 +103,8 @@ Note that unlike in Gen.jl's DML, primitive distributions are also generative fu
 
 It is straightforward to invoke existing PyTorch modules (instances of `torch.nn.Module`) from a generative function, and to train the parameters of these modules using PyTorch's built-in optimizers (in concert with custom gradient accumulation schemes).
 A DML generative function automatically constructs its own `torch.nn.Module` that has as children all PyTorch modules ever invoked during a traced execution of the generative function, that is accessible via the `get_torch_nn_module()` method.
+
+### Other
 
 The address namespace is hierarchical. You can invoke another DML generative function using the special `pygen.dml.lang.inline` constant as the address after `@` to 'inline' the trace and not introduce a new address namespace for the call.
 
