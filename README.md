@@ -106,6 +106,8 @@ A DML generative function automatically constructs its own `torch.nn.Module` tha
 The address namespace is hierarchical. You can invoke another DML generative function using the special `pygen.dml.lang.inline` constant as the address after `@` to 'inline' the trace and not introduce a new address namespace for the call.
 Currently, the only implementation of a choice dictionary is `MutableChoiceTrie`.
 
+Automatic differentiation works through arguments and return-values of generative functions that are `torch.Tensor`s, Python `list`s, Python `dict`s, Python `tuple`s, and compositions of these, as well as user-registered compound data types.
+
 ## Limitations
 
 This implementation is designed primarily as a concrete reference point to aid in the design of a future version of Gen on top of PyTorch.
