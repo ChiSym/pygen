@@ -1,5 +1,3 @@
-import ray
-
 from ..gfi import GenFn, Trace
 from ..choice_address import ChoiceAddress
 from ..choice_trie import ChoiceTrie, MutableChoiceTrie
@@ -91,13 +89,6 @@ class DMLGenFn(GenFn):
         set_gentrace(prev_gentrace)
 
         return (trace, log_weight)
-
-    def generate_multi(self, args, constraints, n):
-        traces_and_weights = []
-        for i in range(n):
-            trace, weight = self.generate(args, constraints)
-            traces_and_weights.append((trace, weight))
-        return traces_and_weights
 
 
 def torch_autograd_function_from_trace(trace):
