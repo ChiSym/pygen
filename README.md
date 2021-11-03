@@ -99,14 +99,16 @@ Users define a DML generative function by applying the `@gendml` decorator to a 
 Within the body of this Python function, you can
 (i) invoke other generative functions, using the syntax `<gen_fn>(<args...>) @ <addr>`, and
 (ii) invoke `torch.nn.Module`s (first, wrap the `torch.nn.Module` instance in a `pygen.gfi.TorchModule` instance e.g. `f`, and then use `f(<args...>) @ inline`).
-Note that unlike in Gen.jl's DML, primitive distributions are also generative functions.
 
 It is straightforward to invoke existing PyTorch modules (instances of `torch.nn.Module`) from a generative function, and to train the parameters of these modules using PyTorch's built-in optimizers (in concert with custom gradient accumulation schemes).
 A DML generative function automatically constructs its own `torch.nn.Module` that has as children all PyTorch modules ever invoked during a traced execution of the generative function, that is accessible via the `get_torch_nn_module()` method.
 
+The address namespace is hierarchical.
+You can invoke another DML generative function using the special `pygen.dml.lang.inline` constant as the address after `@` to 'inline' the trace and not introduce a new address namespace for the call.
+
 ### Other
 
-The address namespace is hierarchical. You can invoke another DML generative function using the special `pygen.dml.lang.inline` constant as the address after `@` to 'inline' the trace and not introduce a new address namespace for the call.
+Note that unlike in Gen.jl's DML, primitive distributions are also generative functions.
 
 Currently, the only implementation of the choice trie interface is `MutableChoiceTrie`.
 
