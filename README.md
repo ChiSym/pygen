@@ -108,7 +108,9 @@ You can invoke another DML generative function using the special `pygen.dml.lang
 
 ### Other
 
-Note that unlike in Gen.jl's DML, primitive distributions are also generative functions.
+Note that unlike in Gen.jl, primitive distributions are also generative functions.
+You can write a DML generative function to behave like a Gen.jl distribution by ensuring that the generative function makes a single random choice at the empty address (`addr()`), and that the value of this choice is equal to the return value.
+It is illegal in the DML to trace a call to a generative function at `addr()` and also trace a call to a generative function at any other address.
 
 Currently, the only implementation of the choice trie interface is `MutableChoiceTrie`.
 
