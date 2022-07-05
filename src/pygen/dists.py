@@ -2,19 +2,19 @@ from .gfi import Trace, GenFn
 from .choice_trie import ChoiceTrie, MutableChoiceTrie
 import torch
 
+
 def _check_is_primitive_and_get_choice(choice_trie):
     if not choice_trie.has_choice():
-        raise RuntimeError(f'choice_trie is not primitive: {choice_trie}')
+        raise RuntimeError(f"choice_trie is not primitive: {choice_trie}")
     return choice_trie.get_choice()
 
 
 class TorchDist(GenFn):
-
     def __init__(self, dist_class):
         self.dist_class = dist_class
 
     def __repr__(self):
-        return f'pygen.TorchDist({repr(self.dist_class)})'
+        return f"pygen.TorchDist({repr(self.dist_class)})"
 
     def get_dist_class(self):
         return self.dist_class
@@ -40,7 +40,6 @@ class TorchDist(GenFn):
 
 
 class TorchDistTrace(Trace):
-
     def __init__(self, gen_fn, args, value, lpdf):
         assert isinstance(gen_fn, TorchDist)
         assert isinstance(value, torch.Tensor)
@@ -99,14 +98,18 @@ class TorchDistTrace(Trace):
         with torch.inference_mode(mode=False):
             value = self.value.detach()
             args_tracked = tuple(
-                arg.detach().clone().requires_grad_(True) if isinstance(arg, torch.Tensor) else arg
-                for arg in self.get_args())
+                arg.detach().clone().requires_grad_(True)
+                if isinstance(arg, torch.Tensor)
+                else arg
+                for arg in self.get_args()
+            )
             dist = self.gen_fn.get_dist_class()(*args_tracked)
             lpdf = dist.log_prob(value).sum()
             lpdf.backward(retain_graph=False)
             arg_grads = tuple(
                 arg.grad if isinstance(arg, torch.Tensor) else None
-                for arg in args_tracked)
+                for arg in args_tracked
+            )
         return arg_grads, None, None
 
     def accum_param_grads(self, retgrad, scale_factor):
@@ -115,3 +118,4 @@ class TorchDistTrace(Trace):
 
 normal = TorchDist(torch.distributions.normal.Normal)
 bernoulli = TorchDist(torch.distributions.bernoulli.Bernoulli)
+uniform = TorchDist(torch.distributions.uniform.Uniform)
