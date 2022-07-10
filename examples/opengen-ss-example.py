@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import pygen
 import matplotlib.pyplot as plt
+import numpy as np
 
 from pygen.dists import normal, uniform
 from pygen.dml.lang import gendml, inline
@@ -31,16 +32,21 @@ M = 10
 collect_elapsed = []
 
 # Now, run MH inference with the custom proposal.
-for iter in range(1, 3000):
+for iter in range(1, 10000):
     start = time.time()
     for i in range(2, 10):
         trace, _ = mh_custom_proposal(trace, proposal, (0.25,))
     end = time.time()
     elapsed = end - start
     print(f"iter: {iter} {elapsed}")
-    collect_elapsed.append(elapsed)
+    collect_elapsed.append(1000 * elapsed)
+
+arr = np.array(collect_elapsed)
+ms_scaled_mean = arr.mean()
+ms_scaled_var = arr.var()
 
 fig, ax = plt.subplots()
 ax.hist(collect_elapsed, 100)
-ax.set(xlim=(0, 0.006))
+ax.set(xlim=(2, 4))
+ax.legend([f"Mean: {ms_scaled_mean}\nVar: {ms_scaled_var}"])
 plt.show()
